@@ -76,16 +76,16 @@ struct CycleHistoryView: View {
     private func dataIndicators(_ cycle: CycleSummary) -> some View {
         HStack(spacing: 6) {
             if cycle.isOvulationConfirmed {
-                indicatorDot(icon: "checkmark.circle.fill", color: .green, tooltip: "Ovulation confirmed")
+                indicatorDot(icon: "checkmark.circle.fill", color: BloomTheme.pinkDeep, tooltip: "Ovulation confirmed")
             }
             if cycle.hasOPKData {
-                indicatorDot(icon: "testtube.2", color: .purple, tooltip: "OPK data")
+                indicatorDot(icon: "testtube.2", color: BloomTheme.pinkDeepest, tooltip: "OPK data")
             }
             if cycle.hasBBTData {
-                indicatorDot(icon: "thermometer", color: .blue, tooltip: "BBT data")
+                indicatorDot(icon: "thermometer", color: BloomTheme.pinkMedium, tooltip: "BBT data")
             }
             if cycle.intercourseCount > 0 {
-                indicatorDot(icon: "heart.fill", color: .pink, tooltip: "\(cycle.intercourseCount)")
+                indicatorDot(icon: "heart.fill", color: BloomTheme.pinkAccent, tooltip: "\(cycle.intercourseCount)")
             }
         }
     }

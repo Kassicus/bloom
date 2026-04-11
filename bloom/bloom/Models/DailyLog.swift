@@ -18,12 +18,17 @@ final class DailyLog {
     // Symptoms (stored as JSON-encoded array by SwiftData)
     var symptoms: [Symptom]
 
-    // Conception
-    var hadIntercourse: Bool
-    var intercourseNotes: String?
+    // Intercourse
+    @Relationship(deleteRule: .cascade, inverse: \IntercourseEntry.dailyLog)
+    var intercourseEntries: [IntercourseEntry]
 
     // Notes
     var notes: String?
+
+    /// Convenience check for whether any intercourse was logged this day.
+    var hadIntercourse: Bool {
+        !intercourseEntries.isEmpty
+    }
 
     init(date: Date, cycle: Cycle? = nil) {
         self.date = Calendar.current.startOfDay(for: date)
@@ -34,8 +39,7 @@ final class DailyLog {
         self.cervicalMucus = nil
         self.opkResult = nil
         self.symptoms = []
-        self.hadIntercourse = false
-        self.intercourseNotes = nil
+        self.intercourseEntries = []
         self.notes = nil
     }
 }

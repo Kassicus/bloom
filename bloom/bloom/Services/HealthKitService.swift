@@ -129,8 +129,8 @@ final class HealthKitService {
         let sample = HKCategorySample(
             type: type,
             value: HKCategoryValue.notApplicable.rawValue,
-            start: date.startOfDay,
-            end: date.startOfDay.addingDays(1)
+            start: date,
+            end: date
         )
 
         try await store.save(sample)
@@ -157,8 +157,8 @@ final class HealthKitService {
             try? await saveOPKResult(date: date, result: opk)
         }
 
-        if log.hadIntercourse {
-            try? await saveSexualActivity(date: date)
+        for entry in log.intercourseEntries {
+            try? await saveSexualActivity(date: entry.dateTime)
         }
     }
 }

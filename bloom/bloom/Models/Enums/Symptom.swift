@@ -84,6 +84,53 @@ enum Symptom: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var cycleContext: String {
+        switch self {
+        case .cramps:
+            "Common during menstruation (uterine contractions) and sometimes at ovulation (mittelschmerz)."
+        case .headache:
+            "Can occur during menstruation due to hormone fluctuations, especially dropping estrogen levels."
+        case .bloating:
+            "Common in the luteal phase due to progesterone's effect on water retention and digestion."
+        case .breastTenderness:
+            "Caused by rising progesterone after ovulation. Can be an early sign that ovulation has occurred."
+        case .backache:
+            "Often accompanies menstrual cramps due to prostaglandin release during uterine contractions."
+        case .nausea:
+            "Can occur during menstruation or in the luteal phase. Also an early pregnancy sign after implantation."
+        case .fatigue:
+            "Common in the luteal phase as progesterone has a mildly sedating effect on the body."
+        case .acne:
+            "Often flares before menstruation when progesterone stimulates oil production in the skin."
+        case .happy:
+            "Mood often improves in the follicular phase as estrogen rises, peaking around ovulation."
+        case .sad:
+            "Low mood is common in the late luteal phase and during menstruation as hormones drop."
+        case .anxious:
+            "Anxiety can increase in the luteal phase as progesterone affects neurotransmitter activity."
+        case .irritable:
+            "Common in the late luteal phase (premenstrual) as estrogen and progesterone decline."
+        case .moodSwings:
+            "Rapid hormone shifts, especially around ovulation and before menstruation, can cause mood variability."
+        case .calm:
+            "A sense of calm is common in the mid-follicular phase as estrogen steadily rises."
+        case .energetic:
+            "Energy typically peaks around ovulation when estrogen is highest."
+        case .tired:
+            "Mild tiredness is common in the early menstrual phase and luteal phase."
+        case .exhausted:
+            "Deep fatigue can signal the late luteal phase or may indicate other factors like poor sleep or illness."
+        case .cravings:
+            "Food cravings often increase in the luteal phase, driven by progesterone and metabolic changes."
+        case .insomnia:
+            "Sleep disruption is common in the late luteal phase as progesterone drops before menstruation."
+        case .highLibido:
+            "Desire often increases around ovulation, driven by rising estrogen and a small testosterone peak."
+        case .lowLibido:
+            "Lower desire is common in the early menstrual phase and late luteal phase."
+        }
+    }
+
     var category: SymptomCategory {
         switch self {
         case .cramps, .headache, .bloating, .breastTenderness, .backache, .nausea, .fatigue, .acne:

@@ -17,9 +17,9 @@ enum FertilityLevel: String, Codable, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
-        case .low: .green
-        case .high: .orange
-        case .peak: Color(.systemPink)
+        case .low: BloomTheme.pinkSoft
+        case .high: BloomTheme.pinkMedium
+        case .peak: BloomTheme.pinkDeep
         }
     }
 

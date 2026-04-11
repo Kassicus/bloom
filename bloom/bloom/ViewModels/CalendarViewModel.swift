@@ -85,6 +85,7 @@ final class CalendarViewModel {
             cycleStart: cycle.startDate,
             cycleLength: effectiveLength,
             periodLength: effectivePeriod,
+            lutealPhaseLength: predictionService.effectiveLutealPhaseLength,
             on: date
         )
     }
@@ -95,6 +96,7 @@ final class CalendarViewModel {
         return CycleCalculationService.fertilityLevel(
             cycleStart: cycle.startDate,
             cycleLength: effectiveLength,
+            lutealPhaseLength: predictionService.effectiveLutealPhaseLength,
             on: date
         )
     }

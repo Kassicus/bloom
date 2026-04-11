@@ -25,7 +25,10 @@ final class PredictionService {
     var avgCycleLength: Double?
     var cycleLengthStdDev: Double?
     var completedCycleCount: Int = 0
-    var predictionConfidence: Double = 0.21
+    var predictionConfidence: Double = 0.15
+
+    // Luteal phase
+    var effectiveLutealPhaseLength: Int = BloomConstants.defaultLutealPhaseLength
 
     // Conception
     var currentConceptionScore: Int?
@@ -37,18 +40,19 @@ final class PredictionService {
     func updatePredictions() {
         let today = Date.now.startOfDay
 
-        // Fetch all cycles sorted by start date
         let descriptor = FetchDescriptor<Cycle>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])
         guard let allCycles = try? modelContext.fetch(descriptor) else { return }
 
-        // Current cycle is the most recent
         currentCycle = allCycles.first
 
-        // Calculate statistics from completed cycles (those with a known cycle length)
         let completedCycles = allCycles.filter { $0.cycleLength != nil }
         completedCycleCount = completedCycles.count
         avgCycleLength = CycleCalculationService.averageCycleLength(from: allCycles)
         cycleLengthStdDev = CycleCalculationService.cycleLengthStdDev(from: allCycles)
+
+        // Learn personal luteal phase length from BBT-confirmed cycles
+        effectiveLutealPhaseLength = CycleCalculationService.learnedLutealPhaseLength(from: allCycles)
+            ?? BloomConstants.defaultLutealPhaseLength
 
         guard let cycle = currentCycle else {
             clearPredictions()
@@ -58,19 +62,19 @@ final class PredictionService {
         let effectiveCycleLength = avgCycleLength.map { Int(round($0)) } ?? BloomConstants.defaultCycleLength
         let effectivePeriodLength = cycle.periodLength ?? BloomConstants.defaultPeriodLength
 
-        // Current cycle day
         currentCycleDay = CycleCalculationService.currentCycleDay(cycleStart: cycle.startDate, on: today)
 
-        // Phase and fertility
         currentPhase = CycleCalculationService.phase(
             cycleStart: cycle.startDate,
             cycleLength: effectiveCycleLength,
             periodLength: effectivePeriodLength,
+            lutealPhaseLength: effectiveLutealPhaseLength,
             on: today
         )
         currentFertilityLevel = CycleCalculationService.fertilityLevel(
             cycleStart: cycle.startDate,
             cycleLength: effectiveCycleLength,
+            lutealPhaseLength: effectiveLutealPhaseLength,
             on: today
         )
 
@@ -79,16 +83,15 @@ final class PredictionService {
         let refined = CycleCalculationService.refineOvulationEstimate(
             cycleStart: cycle.startDate,
             cycleLength: effectiveCycleLength,
+            lutealPhaseLength: effectiveLutealPhaseLength,
             logs: logs
         )
         predictedOvulationDate = refined.date
         cycle.estimatedOvulationDate = refined.date
         cycle.isOvulationConfirmed = refined.confirmed
 
-        // Fertile window
         currentFertileWindow = CycleCalculationService.fertileWindowRange(ovulationDate: refined.date)
 
-        // Next period
         if let avg = avgCycleLength {
             predictedNextPeriodStart = CycleCalculationService.predictNextPeriodStart(
                 lastCycleStart: cycle.startDate,
@@ -112,12 +115,14 @@ final class PredictionService {
         // Prediction confidence
         let hasOPK = logs.contains { $0.opkResult == .positive }
         let hasBBT = logs.filter({ $0.bbtTemperature != nil }).count >= 10
+        let hasBBTConfirmedOvulation = CycleCalculationService.detectOvulationFromBBT(logs: logs) != nil
         let hasMucus = logs.contains { $0.cervicalMucus != nil }
 
         predictionConfidence = CycleCalculationService.predictionConfidence(
             completedCycleCount: completedCycleCount,
             hasOPKData: hasOPK,
             hasBBTData: hasBBT,
+            hasBBTConfirmedOvulation: hasBBTConfirmedOvulation,
             hasMucusData: hasMucus,
             cycleLengthStdDev: cycleLengthStdDev
         )
@@ -142,6 +147,6 @@ final class PredictionService {
         daysUntilNextPeriod = nil
         daysUntilFertileWindow = nil
         currentConceptionScore = nil
-        predictionConfidence = 0.21
+        predictionConfidence = 0.15
     }
 }

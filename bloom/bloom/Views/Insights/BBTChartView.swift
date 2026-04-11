@@ -58,11 +58,11 @@ struct BBTChartView: View {
             if let coverline = coverlineTemp {
                 RuleMark(y: .value("Coverline", coverline))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
-                    .foregroundStyle(.orange.opacity(0.6))
+                    .foregroundStyle(BloomTheme.pinkDeep.opacity(0.6))
                     .annotation(position: .topLeading) {
                         Text("Coverline")
                             .font(.caption2)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(BloomTheme.pinkDeep)
                     }
             }
 
@@ -72,7 +72,7 @@ struct BBTChartView: View {
                     x: .value("Date", point.date),
                     y: .value("Temp", point.temperature)
                 )
-                .foregroundStyle(.blue)
+                .foregroundStyle(BloomTheme.pinkLight)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(
@@ -92,11 +92,11 @@ struct BBTChartView: View {
                 )
                 .symbol(.diamond)
                 .symbolSize(80)
-                .foregroundStyle(.orange)
+                .foregroundStyle(BloomTheme.pinkDeep)
                 .annotation(position: .top, spacing: 4) {
                     Text("Ov")
                         .font(.caption2.bold())
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(BloomTheme.pinkDeep)
                 }
             }
         }
@@ -140,9 +140,9 @@ struct BBTChartView: View {
 
     private func pointColor(for point: BBTDataPoint) -> Color {
         if let coverline = coverlineTemp, point.temperature >= coverline {
-            return .orange
+            return BloomTheme.pinkDeep
         }
-        return .blue
+        return BloomTheme.pinkLight
     }
 
     // MARK: - Subviews
@@ -187,13 +187,13 @@ struct BBTChartView: View {
 
     private var legend: some View {
         HStack(spacing: 16) {
-            legendItem(color: .blue, label: "Pre-ovulation")
-            legendItem(color: .orange, label: "Post-ovulation")
+            legendItem(color: BloomTheme.pinkLight, label: "Pre-ovulation")
+            legendItem(color: BloomTheme.pinkDeep, label: "Post-ovulation")
             if coverlineTemp != nil {
                 HStack(spacing: 4) {
                     Rectangle()
                         .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 2]))
-                        .foregroundStyle(.orange.opacity(0.6))
+                        .foregroundStyle(BloomTheme.pinkDeep.opacity(0.6))
                         .frame(width: 16, height: 1)
                     Text("Coverline")
                         .font(.caption2)

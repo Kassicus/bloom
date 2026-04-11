@@ -3,8 +3,8 @@ import SwiftData
 
 struct DailyLogView: View {
     @Environment(\.modelContext) private var modelContext
+    let predictionService: PredictionService
     @State private var viewModel: DailyLogViewModel?
-    @State private var predictionService: PredictionService?
 
     var body: some View {
         NavigationStack {
@@ -15,13 +15,17 @@ struct DailyLogView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Daily Log")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Daily Log")
+                        .font(BloomTheme.sectionTitle)
+                        .foregroundStyle(BloomTheme.brand)
+                }
+            }
             .onAppear {
                 if viewModel == nil {
-                    let ps = PredictionService(modelContext: modelContext)
-                    ps.updatePredictions()
-                    predictionService = ps
-                    viewModel = DailyLogViewModel(modelContext: modelContext, predictionService: ps)
+                    viewModel = DailyLogViewModel(modelContext: modelContext, predictionService: predictionService)
                 }
             }
         }
@@ -112,7 +116,7 @@ struct DailyLogView: View {
             RoundedRectangle(cornerRadius: 14)
                 .fill(
                     LinearGradient(
-                        colors: [FertilityLevel.peak.color, .orange],
+                        colors: [BloomTheme.brand, BloomTheme.brand.opacity(0.7)],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -167,12 +171,17 @@ struct DailyLogView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+
+                EducationalTipView(
+                    title: "Cycle day 1",
+                    detail: "The first day of your period marks day 1 of a new cycle. Tracking the start date and flow intensity helps build an accurate picture of your cycle length, which directly improves ovulation and fertility predictions."
+                )
             }
         }
     }
 
     private func bbtSection(viewModel: DailyLogViewModel) -> some View {
-        logSection(title: "Temperature (BBT)", icon: "thermometer.medium", color: .blue) {
+        logSection(title: "Temperature (BBT)", icon: "thermometer.medium", color: BloomTheme.pinkDeep) {
             VStack(spacing: 8) {
                 BBTEntryView(
                     temperature: viewModel.bbtTemperature,
@@ -192,7 +201,7 @@ struct DailyLogView: View {
     }
 
     private func mucusSection(viewModel: DailyLogViewModel) -> some View {
-        logSection(title: "Cervical Mucus", icon: "drop", color: .teal) {
+        logSection(title: "Cervical Mucus", icon: "drop", color: BloomTheme.pinkMedium) {
             VStack(spacing: 8) {
                 MucusPickerView(selection: Binding(
                     get: { viewModel.cervicalMucus },
@@ -208,7 +217,7 @@ struct DailyLogView: View {
     }
 
     private func opkSection(viewModel: DailyLogViewModel) -> some View {
-        logSection(title: "Ovulation Test (OPK)", icon: "testtube.2", color: .purple) {
+        logSection(title: "Ovulation Test (OPK)", icon: "testtube.2", color: BloomTheme.pinkDeepest) {
             VStack(spacing: 8) {
                 OPKLogView(selection: Binding(
                     get: { viewModel.opkResult },
@@ -224,24 +233,38 @@ struct DailyLogView: View {
     }
 
     private func intercourseSection(viewModel: DailyLogViewModel) -> some View {
-        logSection(title: "Intercourse", icon: "heart.fill", color: .pink) {
-            IntercourseLogView(
-                hadIntercourse: Binding(
-                    get: { viewModel.hadIntercourse },
-                    set: { viewModel.hadIntercourse = $0 }
-                ),
-                fertilityLevel: viewModel.currentFertilityLevel,
-                isInFertileWindow: viewModel.isInFertileWindow
-            )
+        logSection(title: "Intercourse", icon: "heart.fill", color: BloomTheme.pinkAccent) {
+            VStack(spacing: 8) {
+                IntercourseLogView(
+                    entries: viewModel.intercourseEntries,
+                    fertilityLevel: viewModel.currentFertilityLevel,
+                    isInFertileWindow: viewModel.isInFertileWindow,
+                    onAdd: { time in viewModel.addIntercourseEntry(at: time) },
+                    onRemove: { entry in viewModel.removeIntercourseEntry(entry) },
+                    onUpdateTime: { entry, time in viewModel.updateIntercourseEntryTime(entry, to: time) }
+                )
+
+                EducationalTipView(
+                    title: "Timing and conception",
+                    detail: "Conception probability is highest 1-2 days before ovulation (~27-31% per cycle). Sperm can survive in fertile cervical mucus for up to 5 days, but the egg is viable for only 12-24 hours after release. Intercourse every 1-2 days during the fertile window maximizes your chances."
+                )
+            }
         }
     }
 
     private func symptomSection(viewModel: DailyLogViewModel) -> some View {
-        logSection(title: "Symptoms", icon: "list.bullet.clipboard", color: .orange) {
-            SymptomPickerView(
-                symptoms: viewModel.symptoms,
-                onToggle: viewModel.toggleSymptom
-            )
+        logSection(title: "Symptoms", icon: "list.bullet.clipboard", color: BloomTheme.pinkLight) {
+            VStack(spacing: 8) {
+                SymptomPickerView(
+                    symptoms: viewModel.symptoms,
+                    onToggle: viewModel.toggleSymptom
+                )
+
+                EducationalTipView(
+                    title: "Why track symptoms?",
+                    detail: "Many symptoms follow predictable patterns across your cycle, driven by estrogen and progesterone changes. Tracking them helps you identify personal fertility cues \u{2014} for example, increased libido and breast tenderness can signal that ovulation is approaching or has occurred."
+                )
+            }
         }
     }
 

@@ -45,11 +45,11 @@ struct HealthKitSettingsView: View {
                     }
 
                     Section("Data Synced") {
-                        dataRow(icon: "drop.fill", label: "Menstrual Flow", color: CyclePhase.menstrual.color)
-                        dataRow(icon: "thermometer", label: "Basal Body Temperature", color: .blue)
-                        dataRow(icon: "drop", label: "Cervical Mucus Quality", color: .teal)
-                        dataRow(icon: "testtube.2", label: "Ovulation Test Results", color: .purple)
-                        dataRow(icon: "heart.fill", label: "Sexual Activity", color: .pink)
+                        dataRow(icon: "drop.fill", label: "Menstrual Flow", color: BloomTheme.pinkAccent)
+                        dataRow(icon: "thermometer", label: "Basal Body Temperature", color: BloomTheme.pinkDeep)
+                        dataRow(icon: "drop", label: "Cervical Mucus Quality", color: BloomTheme.pinkMedium)
+                        dataRow(icon: "testtube.2", label: "Ovulation Test Results", color: BloomTheme.pinkDeepest)
+                        dataRow(icon: "heart.fill", label: "Sexual Activity", color: BloomTheme.pinkLight)
                     }
                 }
             }
@@ -69,14 +69,14 @@ struct HealthKitSettingsView: View {
             Spacer()
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.green)
+                .foregroundStyle(BloomTheme.pinkDeep)
         }
     }
 
     private var statusColor: Color {
         switch viewModel.healthKitSyncStatus {
-        case "Connected", "Synced": .green
-        case "Syncing...": .orange
+        case "Connected", "Synced": BloomTheme.pinkDeep
+        case "Syncing...": BloomTheme.pinkMedium
         default: .secondary
         }
     }

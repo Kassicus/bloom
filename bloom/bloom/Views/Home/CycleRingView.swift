@@ -67,7 +67,7 @@ struct CycleRingView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("\(day)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .font(BloomTheme.appTitle)
                 if let phase {
                     Text(phase.label)
                         .font(.caption.bold())

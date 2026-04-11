@@ -3,8 +3,8 @@ import SwiftData
 
 struct CalendarView: View {
     @Environment(\.modelContext) private var modelContext
+    let predictionService: PredictionService
     @State private var viewModel: CalendarViewModel?
-    @State private var predictionService: PredictionService?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
@@ -17,7 +17,14 @@ struct CalendarView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Calendar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Calendar")
+                        .font(BloomTheme.sectionTitle)
+                        .foregroundStyle(BloomTheme.brand)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -38,10 +45,7 @@ struct CalendarView: View {
             }
             .onAppear {
                 if viewModel == nil {
-                    let ps = PredictionService(modelContext: modelContext)
-                    ps.updatePredictions()
-                    predictionService = ps
-                    viewModel = CalendarViewModel(modelContext: modelContext, predictionService: ps)
+                    viewModel = CalendarViewModel(modelContext: modelContext, predictionService: predictionService)
                 }
             }
         }
@@ -160,8 +164,8 @@ struct CalendarView: View {
                 }
             }
 
-            // Phase legend
-            phaseLegend()
+            // Phase legend + info panel
+            phaseLegendAndInfo()
         }
     }
 
@@ -215,19 +219,61 @@ struct CalendarView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func phaseLegend() -> some View {
-        HStack(spacing: 16) {
-            ForEach(CyclePhase.allCases) { phase in
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(phase.color)
-                        .frame(width: 8, height: 8)
-                    Text(phase.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+    private func phaseLegendAndInfo() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Letter legend row
+            HStack(spacing: 14) {
+                ForEach(CyclePhase.allCases) { phase in
+                    HStack(spacing: 4) {
+                        Text(phase.abbreviation)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(phase.color)
+                            .frame(width: 16, height: 16)
+                            .background(phase.color.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        Text(phase.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+
+            // Phase descriptions
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Cycle Phases")
+                    .font(.subheadline.bold())
+
+                ForEach(CyclePhase.allCases) { phase in
+                    phaseInfoRow(phase)
+                }
+            }
+            .padding(.top, 4)
         }
-        .padding(.top, 4)
+        .padding()
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.ultraThinMaterial)
+        }
+    }
+
+    private func phaseInfoRow(_ phase: CyclePhase) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(phase.abbreviation)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(phase.color)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(phase.label)
+                    .font(.caption.bold())
+                    .foregroundStyle(phase.color)
+                Text(phase.detailedDescription)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }

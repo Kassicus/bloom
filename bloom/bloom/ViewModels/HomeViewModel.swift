@@ -45,14 +45,17 @@ final class HomeViewModel {
 
         switch level {
         case .peak:
-            return "Best time for conception — consider intercourse today"
+            return "Peak fertility \u{2014} intercourse today or tomorrow has the highest chance of conception (~20-31% per cycle)"
         case .high:
-            return "Fertile window is active — good time for intercourse"
+            return "You are in your fertile window. Sperm can survive up to 5 days in fertile mucus, so intercourse now can lead to conception when ovulation occurs"
         case .low:
             if let daysUntil = predictionService.daysUntilFertileWindow, daysUntil > 0 {
+                if daysUntil <= 5 {
+                    return "Fertile window starts in \(daysUntil) day\(daysUntil == 1 ? "" : "s") \u{2014} consider starting OPK testing to pinpoint your LH surge"
+                }
                 return "Fertile window starts in \(daysUntil) day\(daysUntil == 1 ? "" : "s")"
             }
-            return "Outside the fertile window"
+            return "Outside the fertile window \u{2014} the egg is viable for only 12-24 hours after ovulation"
         }
     }
 
@@ -96,7 +99,10 @@ final class HomeViewModel {
         if let mucus = log.cervicalMucus { items.append(mucus.label) }
         if let opk = log.opkResult { items.append("OPK: \(opk.label)") }
         if !log.symptoms.isEmpty { items.append("\(log.symptoms.count) symptom\(log.symptoms.count == 1 ? "" : "s")") }
-        if log.hadIntercourse { items.append("Intercourse") }
+        if !log.intercourseEntries.isEmpty {
+            let count = log.intercourseEntries.count
+            items.append(count == 1 ? "Intercourse" : "\(count)x Intercourse")
+        }
         return items
     }
 
@@ -120,21 +126,11 @@ final class HomeViewModel {
 
         let logs = cycle.dailyLogs
 
-        // Timing (0-50)
+        // Timing (0-50) — uses shared scoring aligned with published probabilities
         var bestTiming = 0
         for log in logs where log.hadIntercourse {
-            let d = log.date.startOfDay.daysBetween(ovDate.startOfDay)
-            let s: Int
-            switch d {
-            case -1: s = 50
-            case 0: s = 45
-            case -2: s = 40
-            case -3: s = 30
-            case -4: s = 20
-            case -5: s = 10
-            default: s = 0
-            }
-            bestTiming = max(bestTiming, s)
+            let daysBeforeOv = log.date.startOfDay.daysBetween(ovDate.startOfDay)
+            bestTiming = max(bestTiming, CycleCalculationService.timingScore(daysBeforeOvulation: daysBeforeOv))
         }
 
         // Data quality (0-30)
@@ -151,6 +147,27 @@ final class HomeViewModel {
         return (bestTiming, dq, fs)
     }
 
+    /// Description of the best-timed intercourse day and its estimated probability.
+    var bestTimingDescription: String? {
+        guard let cycle = predictionService.currentCycle,
+              let ovDate = predictionService.predictedOvulationDate else { return nil }
+
+        var bestScore = 0
+        var bestDays = 0
+        for log in cycle.dailyLogs where log.hadIntercourse {
+            let d = log.date.startOfDay.daysBetween(ovDate.startOfDay)
+            let s = CycleCalculationService.timingScore(daysBeforeOvulation: d)
+            if s > bestScore { bestScore = s; bestDays = d }
+        }
+
+        guard bestScore > 0,
+              let prob = CycleCalculationService.estimatedConceptionProbability(forTimingScore: bestScore) else {
+            return nil
+        }
+
+        return "Best timing: \(CycleCalculationService.timingDayLabel(daysBeforeOvulation: bestDays)) (\(prob) per-cycle probability)"
+    }
+
     // MARK: - Cycle Ring Data
 
     /// Returns phase segments as (phase, startFraction, endFraction) for the cycle ring.
@@ -159,7 +176,7 @@ final class HomeViewModel {
 
         let cycleLength = Double(effectiveCycleLength)
         let periodLength = Double(predictionService.currentCycle?.periodLength ?? BloomConstants.defaultPeriodLength)
-        let ovulationDay = Double(effectiveCycleLength - BloomConstants.defaultLutealPhaseLength)
+        let ovulationDay = Double(effectiveCycleLength - predictionService.effectiveLutealPhaseLength)
 
         return [
             (.menstrual, 0, periodLength / cycleLength),

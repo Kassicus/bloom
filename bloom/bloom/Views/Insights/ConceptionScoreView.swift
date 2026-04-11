@@ -61,9 +61,9 @@ struct ConceptionScoreView: View {
                     scoreRing(size: 80, lineWidth: 7)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        breakdownRow(label: "Timing", value: timingScore, maxValue: 50, color: .pink)
-                        breakdownRow(label: "Data Quality", value: dataQualityScore, maxValue: 30, color: .blue)
-                        breakdownRow(label: "Favorable Signs", value: favorableSignsScore, maxValue: 20, color: .green)
+                        breakdownRow(label: "Timing", value: timingScore, maxValue: 50, color: BloomTheme.pinkDeep)
+                        breakdownRow(label: "Data Quality", value: dataQualityScore, maxValue: 30, color: BloomTheme.pinkMedium)
+                        breakdownRow(label: "Favorable Signs", value: favorableSignsScore, maxValue: 20, color: BloomTheme.pinkLight)
                     }
                 }
 
@@ -71,6 +71,23 @@ struct ConceptionScoreView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Probability context
+                if let prob = CycleCalculationService.estimatedConceptionProbability(forTimingScore: timingScore) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.caption)
+                            .foregroundStyle(BloomTheme.pinkMedium)
+                        Text("Estimated per-cycle probability based on timing: \(prob)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                EducationalTipView(
+                    title: "What this score means",
+                    detail: "This score reflects how well your intercourse timing aligns with your estimated fertile window, combined with data quality. It is not a pregnancy probability. Actual per-cycle conception probability for healthy couples with optimal timing is approximately 20-30%. Factors like age, overall health, and partner fertility significantly affect real outcomes."
+                )
             } else {
                 emptyState
             }
@@ -134,9 +151,9 @@ struct ConceptionScoreView: View {
 
     private var scoreColor: Color {
         guard let score else { return .secondary }
-        if score >= 60 { return .green }
-        if score >= 30 { return .orange }
-        return .red
+        if score >= 60 { return BloomTheme.pinkSoft }
+        if score >= 30 { return BloomTheme.pinkMedium }
+        return BloomTheme.pinkDeepest
     }
 
     private var scoreDescription: String {

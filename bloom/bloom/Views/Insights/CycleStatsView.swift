@@ -32,13 +32,13 @@ struct CycleStatsView: View {
                 title: "Avg Cycle",
                 value: averageCycleLength.map { String(format: "%.0f days", $0) } ?? "—",
                 icon: "arrow.triangle.2.circlepath",
-                color: .blue
+                color: BloomTheme.pinkMedium
             )
             statCard(
                 title: "Avg Period",
                 value: averagePeriodLength.map { String(format: "%.0f days", $0) } ?? "—",
                 icon: "drop.fill",
-                color: CyclePhase.menstrual.color
+                color: BloomTheme.pinkAccent
             )
             statCard(
                 title: "Regularity",
@@ -50,13 +50,13 @@ struct CycleStatsView: View {
                 title: "Range",
                 value: cycleLengthRange.map { "\($0.lowerBound)–\($0.upperBound) days" } ?? "—",
                 icon: "ruler",
-                color: .purple
+                color: BloomTheme.pinkDeep
             )
             statCard(
                 title: "Cycles Tracked",
                 value: "\(completedCycleCount)",
                 icon: "chart.bar",
-                color: .teal
+                color: BloomTheme.pinkLight
             )
             statCard(
                 title: "Confidence",
@@ -89,16 +89,16 @@ struct CycleStatsView: View {
 
     private var regularityColor: Color {
         switch regularityDescription {
-        case "Regular": .green
-        case "Somewhat Regular": .orange
-        default: .red
+        case "Regular": BloomTheme.pinkSoft
+        case "Somewhat Regular": BloomTheme.pinkMedium
+        default: BloomTheme.pinkDeepest
         }
     }
 
     private var confidenceColor: Color {
-        if confidencePercent >= 70 { return .green }
-        if confidencePercent >= 40 { return .orange }
-        return .red
+        if confidencePercent >= 70 { return BloomTheme.pinkSoft }
+        if confidencePercent >= 40 { return BloomTheme.pinkMedium }
+        return BloomTheme.pinkDeepest
     }
 
     private var emptyState: some View {

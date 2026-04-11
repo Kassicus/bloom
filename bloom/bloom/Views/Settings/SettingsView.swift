@@ -3,8 +3,8 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    let predictionService: PredictionService
     @State private var viewModel: SettingsViewModel?
-    @State private var predictionService: PredictionService?
     @State private var showingDeleteConfirmation = false
 
     var body: some View {
@@ -16,13 +16,17 @@ struct SettingsView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Settings")
+                        .font(BloomTheme.sectionTitle)
+                        .foregroundStyle(BloomTheme.brand)
+                }
+            }
             .onAppear {
                 if viewModel == nil {
-                    let ps = PredictionService(modelContext: modelContext)
-                    ps.updatePredictions()
-                    predictionService = ps
-                    let vm = SettingsViewModel(modelContext: modelContext, predictionService: ps)
+                    let vm = SettingsViewModel(modelContext: modelContext, predictionService: predictionService)
                     vm.loadPreferences()
                     viewModel = vm
                 }
@@ -38,7 +42,7 @@ struct SettingsView: View {
                 } label: {
                     HStack {
                         Image(systemName: "bell.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(BloomTheme.pinkMedium)
                             .frame(width: 24)
                         Text("Reminders")
                     }
@@ -51,7 +55,7 @@ struct SettingsView: View {
                 } label: {
                     HStack {
                         Image(systemName: "heart.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(BloomTheme.pinkDeep)
                             .frame(width: 24)
                         Text("HealthKit Integration")
                         Spacer()
@@ -71,7 +75,7 @@ struct SettingsView: View {
                 )) {
                     HStack {
                         Image(systemName: "thermometer")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(BloomTheme.pinkMedium)
                             .frame(width: 24)
                         Text("Temperature in \u{00B0}C")
                     }

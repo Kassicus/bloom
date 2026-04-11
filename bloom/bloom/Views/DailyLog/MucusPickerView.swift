@@ -58,19 +58,19 @@ struct MucusPickerView: View {
 
     private func mucusVisual(for type: CervicalMucusType) -> some ShapeStyle {
         switch type {
-        case .dry: return AnyShapeStyle(Color.gray.opacity(0.3))
-        case .sticky: return AnyShapeStyle(Color.yellow.opacity(0.4))
-        case .creamy: return AnyShapeStyle(Color.white.opacity(0.9))
-        case .watery: return AnyShapeStyle(Color.blue.opacity(0.3))
-        case .eggWhite: return AnyShapeStyle(Color.clear)
+        case .dry: return AnyShapeStyle(BloomTheme.pinkPale.opacity(0.5))
+        case .sticky: return AnyShapeStyle(BloomTheme.pinkSoft.opacity(0.6))
+        case .creamy: return AnyShapeStyle(BloomTheme.pinkLight.opacity(0.7))
+        case .watery: return AnyShapeStyle(BloomTheme.pinkMedium.opacity(0.5))
+        case .eggWhite: return AnyShapeStyle(BloomTheme.pinkAccent.opacity(0.3))
         }
     }
 
     private func fertilityColor(for type: CervicalMucusType) -> Color {
         switch type {
         case .dry, .sticky: return .secondary
-        case .creamy: return .orange
-        case .watery, .eggWhite: return FertilityLevel.peak.color
+        case .creamy: return BloomTheme.pinkMedium
+        case .watery, .eggWhite: return BloomTheme.pinkDeep
         }
     }
 }

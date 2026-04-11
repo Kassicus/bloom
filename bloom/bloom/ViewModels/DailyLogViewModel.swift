@@ -18,7 +18,7 @@ final class DailyLogViewModel {
     var cervicalMucus: CervicalMucusType? = nil { didSet { syncField { log in log.cervicalMucus = cervicalMucus } } }
     var opkResult: OPKResult? = nil { didSet { syncField { log in log.opkResult = opkResult } } }
     var symptoms: Set<Symptom> = [] { didSet { syncField { log in log.symptoms = Array(symptoms) } } }
-    var hadIntercourse: Bool = false { didSet { syncField { log in log.hadIntercourse = hadIntercourse } } }
+    var intercourseEntries: [IntercourseEntry] = []
     var notes: String = "" { didSet { syncField { log in log.notes = notes.isEmpty ? nil : notes } } }
 
     // Derived display state
@@ -107,6 +107,55 @@ final class DailyLogViewModel {
         symptoms.contains(symptom)
     }
 
+    // MARK: - Intercourse Helpers
+
+    func addIntercourseEntry(at time: Date = .now) {
+        ensureLogExists()
+        guard let log = currentLog else { return }
+
+        // Combine the current date with the chosen time
+        let calendar = Calendar.current
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: currentDate)
+        dateComponents.hour = timeComponents.hour
+        dateComponents.minute = timeComponents.minute
+        let dateTime = calendar.date(from: dateComponents) ?? time
+
+        let entry = IntercourseEntry(dateTime: dateTime)
+        entry.dailyLog = log
+        modelContext.insert(entry)
+        try? modelContext.save()
+
+        intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+        predictionService.updatePredictions()
+    }
+
+    func removeIntercourseEntry(_ entry: IntercourseEntry) {
+        modelContext.delete(entry)
+        try? modelContext.save()
+
+        if let log = currentLog {
+            intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+        } else {
+            intercourseEntries = []
+        }
+        predictionService.updatePredictions()
+    }
+
+    func updateIntercourseEntryTime(_ entry: IntercourseEntry, to newTime: Date) {
+        let calendar = Calendar.current
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: newTime)
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: currentDate)
+        dateComponents.hour = timeComponents.hour
+        dateComponents.minute = timeComponents.minute
+        entry.dateTime = calendar.date(from: dateComponents) ?? newTime
+        try? modelContext.save()
+
+        if let log = currentLog {
+            intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+        }
+    }
+
     // MARK: - Completion
 
     var completionItems: Int {
@@ -116,7 +165,7 @@ final class DailyLogViewModel {
         if cervicalMucus != nil { count += 1 }
         if opkResult != nil { count += 1 }
         if !symptoms.isEmpty { count += 1 }
-        if hadIntercourse { count += 1 }
+        if !intercourseEntries.isEmpty { count += 1 }
         return count
     }
 
@@ -143,7 +192,7 @@ final class DailyLogViewModel {
             cervicalMucus = log.cervicalMucus
             opkResult = log.opkResult
             symptoms = Set(log.symptoms)
-            hadIntercourse = log.hadIntercourse
+            intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
             notes = log.notes ?? ""
         } else {
             isOnPeriod = false
@@ -152,8 +201,20 @@ final class DailyLogViewModel {
             cervicalMucus = nil
             opkResult = nil
             symptoms = []
-            hadIntercourse = false
+            intercourseEntries = []
             notes = ""
+        }
+    }
+
+    private func ensureLogExists() {
+        if currentLog == nil {
+            let log = DailyLog(date: currentDate)
+            modelContext.insert(log)
+            if let cycle = predictionService.currentCycle,
+               currentDate >= cycle.startDate {
+                log.cycle = cycle
+            }
+            currentLog = log
         }
     }
 

@@ -181,7 +181,7 @@ final class InsightsViewModel {
         cycleHistory = allCycles.map { cycle in
             let hasOPK = cycle.dailyLogs.contains { $0.opkResult == .positive }
             let hasBBT = cycle.dailyLogs.filter({ $0.bbtTemperature != nil }).count >= 5
-            let intercourseCount = cycle.dailyLogs.filter { $0.hadIntercourse }.count
+            let intercourseCount = cycle.dailyLogs.reduce(0) { $0 + $1.intercourseEntries.count }
 
             return CycleSummary(
                 startDate: cycle.startDate,
@@ -210,21 +210,11 @@ final class InsightsViewModel {
 
         let logs = cycle.dailyLogs
 
-        // Timing (0-50)
+        // Timing (0-50) — uses shared scoring aligned with published probabilities
         var bestTiming = 0
         for log in logs where log.hadIntercourse {
-            let d = log.date.startOfDay.daysBetween(ovDate.startOfDay)
-            let s: Int
-            switch d {
-            case -1: s = 50
-            case 0: s = 45
-            case -2: s = 40
-            case -3: s = 30
-            case -4: s = 20
-            case -5: s = 10
-            default: s = 0
-            }
-            bestTiming = max(bestTiming, s)
+            let daysBeforeOv = log.date.startOfDay.daysBetween(ovDate.startOfDay)
+            bestTiming = max(bestTiming, CycleCalculationService.timingScore(daysBeforeOvulation: daysBeforeOv))
         }
         conceptionTimingScore = bestTiming
 

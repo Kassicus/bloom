@@ -68,8 +68,8 @@ struct OPKLogView: View {
     private func iconColor(for result: OPKResult) -> Color {
         switch result {
         case .negative: .secondary
-        case .nearPositive: .orange
-        case .positive: FertilityLevel.peak.color
+        case .nearPositive: BloomTheme.pinkMedium
+        case .positive: BloomTheme.pinkDeep
         }
     }
 }

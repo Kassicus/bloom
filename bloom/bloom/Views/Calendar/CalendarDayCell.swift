@@ -13,20 +13,19 @@ struct CalendarDayCell: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text("\(calendar.component(.day, from: date))")
                     .font(isToday ? .callout.bold() : .callout)
                     .foregroundStyle(foregroundColor)
 
-                // Fertility dot
-                if let fertility {
-                    Circle()
-                        .fill(fertility.color)
-                        .frame(width: 5, height: 5)
+                // Phase letter indicator
+                if let phase {
+                    Text(phase.abbreviation)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(phase.color)
                 } else {
-                    Circle()
-                        .fill(.clear)
-                        .frame(width: 5, height: 5)
+                    Text(" ")
+                        .font(.system(size: 8))
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 40)
@@ -39,7 +38,7 @@ struct CalendarDayCell: View {
                 }
                 if isSelected {
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .strokeBorder(BloomTheme.pinkAccent, lineWidth: 2)
                 }
             }
         }

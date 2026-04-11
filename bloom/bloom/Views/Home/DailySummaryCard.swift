@@ -12,7 +12,7 @@ struct DailySummaryCard: View {
                 Spacer()
                 if hasData {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(BloomTheme.pinkDeep)
                 }
             }
 

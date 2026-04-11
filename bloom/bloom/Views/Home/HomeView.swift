@@ -3,8 +3,8 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    let predictionService: PredictionService
     @State private var viewModel: HomeViewModel?
-    @State private var predictionService: PredictionService?
 
     var body: some View {
         NavigationStack {
@@ -15,16 +15,19 @@ struct HomeView: View {
                     ProgressView()
                 }
             }
-            .navigationTitle("Bloom")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Bloom")
+                        .font(BloomTheme.appTitle)
+                        .foregroundStyle(BloomTheme.brand)
+                }
+            }
             .onAppear {
                 if viewModel == nil {
-                    let ps = PredictionService(modelContext: modelContext)
-                    ps.updatePredictions()
-                    predictionService = ps
-                    let vm = HomeViewModel(modelContext: modelContext, predictionService: ps)
-                    vm.refresh()
-                    viewModel = vm
+                    viewModel = HomeViewModel(modelContext: modelContext, predictionService: predictionService)
                 }
+                viewModel?.refresh()
             }
         }
     }
@@ -72,6 +75,11 @@ struct HomeView: View {
                 recommendation: viewModel.recommendationText
             )
 
+            // Phase education card
+            if let phase = viewModel.predictionService.currentPhase {
+                phaseEducationCard(phase: phase)
+            }
+
             // Countdown cards
             countdownCards(viewModel: viewModel)
 
@@ -97,6 +105,39 @@ struct HomeView: View {
                 loggedItems: viewModel.todayLoggedItems,
                 hasData: viewModel.todayHasData
             )
+
+            // How to improve accuracy
+            EducationalTipView(
+                title: "How to improve prediction accuracy",
+                detail: "OPK tests predict ovulation 24-48 hours in advance and are the most actionable indicator. Cervical mucus provides real-time fertility cues. BBT confirms ovulation after it occurs and helps the app learn your personal luteal phase length for more accurate future predictions. Using all three gives the most complete picture."
+            )
+            .padding()
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.ultraThinMaterial)
+            }
+        }
+    }
+
+    private func phaseEducationCard(phase: CyclePhase) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(phase.color)
+                    .frame(width: 10, height: 10)
+                Text("\(phase.label) Phase")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(phase.color)
+            }
+            Text(phase.detailedDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(phase.color.opacity(0.06))
         }
     }
 
@@ -124,7 +165,7 @@ struct HomeView: View {
             RoundedRectangle(cornerRadius: 14)
                 .fill(
                     LinearGradient(
-                        colors: [FertilityLevel.peak.color, .orange],
+                        colors: [BloomTheme.brand, BloomTheme.brand.opacity(0.7)],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -209,9 +250,9 @@ struct HomeView: View {
     }
 
     private func confidenceColor(_ confidence: Double) -> Color {
-        if confidence >= 0.7 { return .green }
-        if confidence >= 0.4 { return .orange }
-        return .red
+        if confidence >= 0.7 { return BloomTheme.pinkSoft }
+        if confidence >= 0.4 { return BloomTheme.pinkMedium }
+        return BloomTheme.pinkDeepest
     }
 
     private var emptyStateView: some View {
@@ -226,7 +267,8 @@ struct HomeView: View {
             )
 
             Text("Welcome to Bloom")
-                .font(.title2.bold())
+                .font(BloomTheme.sectionTitle)
+                .foregroundStyle(BloomTheme.brand)
 
             Text("Start by logging your period on the Calendar tab to begin tracking your cycle and fertility.")
                 .font(.body)

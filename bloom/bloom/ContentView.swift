@@ -2,26 +2,42 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var predictionService: PredictionService?
+
     var body: some View {
-        TabView {
-            Tab("Home", systemImage: "house") {
-                HomeView()
-            }
+        Group {
+            if let predictionService {
+                TabView {
+                    Tab("Home", systemImage: "house") {
+                        HomeView(predictionService: predictionService)
+                    }
 
-            Tab("Calendar", systemImage: "calendar") {
-                CalendarView()
-            }
+                    Tab("Calendar", systemImage: "calendar") {
+                        CalendarView(predictionService: predictionService)
+                    }
 
-            Tab("Log", systemImage: "plus.circle.fill") {
-                DailyLogView()
-            }
+                    Tab("Log", systemImage: "plus.circle.fill") {
+                        DailyLogView(predictionService: predictionService)
+                    }
 
-            Tab("Insights", systemImage: "chart.line.uptrend.xyaxis") {
-                InsightsView()
-            }
+                    Tab("Insights", systemImage: "chart.line.uptrend.xyaxis") {
+                        InsightsView(predictionService: predictionService)
+                    }
 
-            Tab("Settings", systemImage: "gear") {
-                SettingsView()
+                    Tab("Settings", systemImage: "gear") {
+                        SettingsView(predictionService: predictionService)
+                    }
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .onAppear {
+            if predictionService == nil {
+                let ps = PredictionService(modelContext: modelContext)
+                ps.updatePredictions()
+                predictionService = ps
             }
         }
     }
@@ -29,5 +45,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [Cycle.self, DailyLog.self], inMemory: true)
+        .modelContainer(for: [Cycle.self, DailyLog.self, IntercourseEntry.self], inMemory: true)
 }

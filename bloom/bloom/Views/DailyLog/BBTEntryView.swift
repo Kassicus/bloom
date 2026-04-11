@@ -47,7 +47,7 @@ struct BBTEntryView: View {
                 Button(action: onClear) {
                     Text("Clear")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(BloomTheme.pinkDeepest)
                 }
             }
 
