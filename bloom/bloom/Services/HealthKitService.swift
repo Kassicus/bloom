@@ -44,7 +44,7 @@ final class HealthKitService {
     func saveMenstrualFlow(date: Date, flow: FlowIntensity, isCycleStart: Bool) async throws {
         guard let type = HKCategoryType.categoryType(forIdentifier: .menstrualFlow) else { return }
 
-        let hkValue: HKCategoryValueMenstrualFlow
+        let hkValue: HKCategoryValueVaginalBleeding
         switch flow {
         case .spotting: hkValue = .unspecified
         case .light: hkValue = .light
@@ -110,7 +110,7 @@ final class HealthKitService {
         switch result {
         case .negative: hkValue = .negative
         case .nearPositive: hkValue = .indeterminate
-        case .positive: hkValue = .positive
+        case .positive: hkValue = .luteinizingHormoneSurge
         }
 
         let sample = HKCategorySample(

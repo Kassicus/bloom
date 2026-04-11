@@ -1,6 +1,6 @@
 import Foundation
 
-extension Date {
+nonisolated extension Date {
     var startOfDay: Date {
         Calendar.current.startOfDay(for: self)
     }

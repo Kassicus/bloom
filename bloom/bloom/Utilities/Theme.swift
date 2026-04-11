@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Theme Colors
 
@@ -16,8 +17,21 @@ struct ThemeColors {
     /// Card background style — material for Bloom, tinted color for Garden.
     let cardFill: AnyShapeStyle
 
+    /// Creates a Color that adapts to light/dark appearance automatically.
+    static func adaptive(
+        light: (r: Double, g: Double, b: Double),
+        dark: (r: Double, g: Double, b: Double)
+    ) -> Color {
+        Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: dark.r, green: dark.g, blue: dark.b, alpha: 1)
+                : UIColor(red: light.r, green: light.g, blue: light.b, alpha: 1)
+        })
+    }
+
     // MARK: - Bloom (Monochrome Pink)
     // All shades derived from the accent color #FF7BAD (HSB 338°, 52%, 100%)
+    // Uses .ultraThinMaterial for cards which auto-adapts to dark mode.
 
     static let bloom = ThemeColors(
         brand: Color("AccentColor"),
@@ -33,21 +47,25 @@ struct ThemeColors {
     )
 
     // MARK: - Garden (Colorful Pastels)
-    // Multi-hue pastel palette — each intensity level uses a different color family
-    // while maintaining a coherent warm-to-cool visual hierarchy.
-    // Backgrounds use tinted colors rather than neutral materials.
+    // Multi-hue pastel palette with dark mode adaptations.
+    // Light mode: soft pastels on light tinted backgrounds.
+    // Dark mode: richer, more saturated variants on dark tinted backgrounds.
 
     static let garden = ThemeColors(
-        brand: Color(red: 0.53, green: 0.72, blue: 0.57),      // #88B891 — soft sage
-        deepest: Color(red: 0.61, green: 0.42, blue: 0.56),    // #9B6B8E — deep orchid
-        deep: Color(red: 0.83, green: 0.52, blue: 0.61),       // #D4849B — dusty rose
-        medium: Color(red: 0.91, green: 0.66, blue: 0.54),     // #E8A889 — warm coral
-        accent: Color(red: 0.53, green: 0.72, blue: 0.57),     // #88B891 — soft sage
-        light: Color(red: 0.72, green: 0.65, blue: 0.81),      // #B8A5CF — soft lavender
-        soft: Color(red: 0.66, green: 0.83, blue: 0.72),       // #A8D4B8 — pale mint
-        pale: Color(red: 0.90, green: 0.95, blue: 0.91),       // #E6F2E8 — light sage
-        faintest: Color(red: 0.94, green: 0.92, blue: 0.97),   // #F0EBF7 — light lavender
-        cardFill: AnyShapeStyle(Color(red: 0.94, green: 0.96, blue: 0.94).opacity(0.85)) // light sage tint
+        brand:   adaptive(light: (0.53, 0.72, 0.57), dark: (0.42, 0.62, 0.46)),   // sage
+        deepest: adaptive(light: (0.61, 0.42, 0.56), dark: (0.77, 0.56, 0.70)),   // orchid
+        deep:    adaptive(light: (0.83, 0.52, 0.61), dark: (0.83, 0.52, 0.61)),   // dusty rose (works both)
+        medium:  adaptive(light: (0.91, 0.66, 0.54), dark: (0.83, 0.56, 0.43)),   // coral
+        accent:  adaptive(light: (0.53, 0.72, 0.57), dark: (0.42, 0.62, 0.46)),   // sage
+        light:   adaptive(light: (0.72, 0.65, 0.81), dark: (0.63, 0.54, 0.75)),   // lavender
+        soft:    adaptive(light: (0.66, 0.83, 0.72), dark: (0.48, 0.72, 0.58)),   // mint
+        pale:    adaptive(light: (0.90, 0.95, 0.91), dark: (0.12, 0.17, 0.13)),   // sage bg
+        faintest: adaptive(light: (0.94, 0.92, 0.97), dark: (0.12, 0.11, 0.14)),  // lavender bg
+        cardFill: AnyShapeStyle(Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.14, green: 0.18, blue: 0.15, alpha: 0.85)   // dark sage tint
+                : UIColor(red: 0.94, green: 0.96, blue: 0.94, alpha: 0.85)   // light sage tint
+        }))
     )
 }
 
