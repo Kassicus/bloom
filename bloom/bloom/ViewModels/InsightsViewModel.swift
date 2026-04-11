@@ -135,7 +135,7 @@ final class InsightsViewModel {
             return
         }
 
-        let logs = cycle.dailyLogs
+        let logs = (cycle.dailyLogs ?? [])
             .filter { $0.bbtTemperature != nil }
             .sorted { $0.date < $1.date }
 
@@ -149,7 +149,7 @@ final class InsightsViewModel {
         }
 
         // Detect ovulation from BBT
-        detectedOvulationDate = CycleCalculationService.detectOvulationFromBBT(logs: cycle.dailyLogs)
+        detectedOvulationDate = CycleCalculationService.detectOvulationFromBBT(logs: cycle.dailyLogs ?? [])
 
         // Calculate coverline: average of pre-ovulation temps + buffer
         if let ovDate = detectedOvulationDate ?? cycle.estimatedOvulationDate {
@@ -179,9 +179,10 @@ final class InsightsViewModel {
         guard let allCycles = try? modelContext.fetch(descriptor) else { return }
 
         cycleHistory = allCycles.map { cycle in
-            let hasOPK = cycle.dailyLogs.contains { $0.opkResult == .positive }
-            let hasBBT = cycle.dailyLogs.filter({ $0.bbtTemperature != nil }).count >= 5
-            let intercourseCount = cycle.dailyLogs.reduce(0) { $0 + $1.intercourseEntries.count }
+            let logs = cycle.dailyLogs ?? []
+            let hasOPK = logs.contains { $0.opkResult == .positive }
+            let hasBBT = logs.filter({ $0.bbtTemperature != nil }).count >= 5
+            let intercourseCount = logs.reduce(0) { $0 + ($1.intercourseEntries ?? []).count }
 
             return CycleSummary(
                 startDate: cycle.startDate,
@@ -208,7 +209,7 @@ final class InsightsViewModel {
             return
         }
 
-        let logs = cycle.dailyLogs
+        let logs = cycle.dailyLogs ?? []
 
         // Timing (0-50) — uses shared scoring aligned with published probabilities
         var bestTiming = 0

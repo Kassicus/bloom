@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class DailyLog {
-    var date: Date
+    var date: Date = Date.distantPast
     var cycle: Cycle?
 
     // Period
-    var isOnPeriod: Bool
+    var isOnPeriod: Bool = false
     var flowIntensity: FlowIntensity?
 
     // Fertility markers
@@ -16,18 +16,18 @@ final class DailyLog {
     var opkResult: OPKResult?
 
     // Symptoms (stored as JSON-encoded array by SwiftData)
-    var symptoms: [Symptom]
+    var symptoms: [Symptom] = []
 
     // Intercourse
     @Relationship(deleteRule: .cascade, inverse: \IntercourseEntry.dailyLog)
-    var intercourseEntries: [IntercourseEntry]
+    var intercourseEntries: [IntercourseEntry]?
 
     // Notes
     var notes: String?
 
     /// Convenience check for whether any intercourse was logged this day.
     var hadIntercourse: Bool {
-        !intercourseEntries.isEmpty
+        !(intercourseEntries ?? []).isEmpty
     }
 
     init(date: Date, cycle: Cycle? = nil) {
@@ -39,7 +39,7 @@ final class DailyLog {
         self.cervicalMucus = nil
         self.opkResult = nil
         self.symptoms = []
-        self.intercourseEntries = []
+        self.intercourseEntries = nil
         self.notes = nil
     }
 }

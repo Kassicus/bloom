@@ -10,10 +10,22 @@ struct bloomApp: App {
             DailyLog.self,
             IntercourseEntry.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
+        // Try CloudKit sync first, fall back to local-only if iCloud isn't available
+        let cloudConfig = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .automatic
+        )
+
+        if let container = try? ModelContainer(for: schema, configurations: [cloudConfig]) {
+            return container
+        }
+
+        // Fallback: local-only storage
+        let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [localConfig])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -26,6 +38,7 @@ struct bloomApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .tint(BloomTheme.brand)
         }
         .modelContainer(sharedModelContainer)
     }

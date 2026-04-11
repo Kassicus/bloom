@@ -220,7 +220,7 @@ final class CalendarViewModel {
     }
 
     private func updatePeriodLength(for cycle: Cycle) {
-        let periodLogs = cycle.dailyLogs.filter { $0.isOnPeriod }.sorted { $0.date < $1.date }
+        let periodLogs = (cycle.dailyLogs ?? []).filter { $0.isOnPeriod }.sorted { $0.date < $1.date }
         if let first = periodLogs.first, let last = periodLogs.last {
             cycle.endDate = last.date
             cycle.periodLength = first.date.daysBetween(last.date) + 1

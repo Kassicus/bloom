@@ -101,7 +101,7 @@ struct CalendarView: View {
 
     private func weekdayHeader(viewModel: CalendarViewModel) -> some View {
         LazyVGrid(columns: columns, spacing: 4) {
-            ForEach(viewModel.weekdaySymbols, id: \.self) { symbol in
+            ForEach(Array(viewModel.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
@@ -195,7 +195,7 @@ struct CalendarView: View {
             }
         }
         .padding()
-        .background(.ultraThinMaterial)
+        .background(BloomTheme.cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -252,7 +252,7 @@ struct CalendarView: View {
         .padding()
         .background {
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
+                .fill(BloomTheme.cardFill)
         }
     }
 

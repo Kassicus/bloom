@@ -55,7 +55,7 @@ struct FertilityBadgeView: View {
         if let level {
             return AnyShapeStyle(level.color.opacity(0.08))
         }
-        return AnyShapeStyle(.ultraThinMaterial)
+        return BloomTheme.cardFill
     }
 
     private func iconName(for level: FertilityLevel) -> String {

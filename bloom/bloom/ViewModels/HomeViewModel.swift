@@ -99,8 +99,8 @@ final class HomeViewModel {
         if let mucus = log.cervicalMucus { items.append(mucus.label) }
         if let opk = log.opkResult { items.append("OPK: \(opk.label)") }
         if !log.symptoms.isEmpty { items.append("\(log.symptoms.count) symptom\(log.symptoms.count == 1 ? "" : "s")") }
-        if !log.intercourseEntries.isEmpty {
-            let count = log.intercourseEntries.count
+        if !(log.intercourseEntries ?? []).isEmpty {
+            let count = (log.intercourseEntries ?? []).count
             items.append(count == 1 ? "Intercourse" : "\(count)x Intercourse")
         }
         return items
@@ -124,7 +124,7 @@ final class HomeViewModel {
             return (0, 0, 0)
         }
 
-        let logs = cycle.dailyLogs
+        let logs = cycle.dailyLogs ?? []
 
         // Timing (0-50) — uses shared scoring aligned with published probabilities
         var bestTiming = 0
@@ -154,7 +154,7 @@ final class HomeViewModel {
 
         var bestScore = 0
         var bestDays = 0
-        for log in cycle.dailyLogs where log.hadIntercourse {
+        for log in (cycle.dailyLogs ?? []) where log.hadIntercourse {
             let d = log.date.startOfDay.daysBetween(ovDate.startOfDay)
             let s = CycleCalculationService.timingScore(daysBeforeOvulation: d)
             if s > bestScore { bestScore = s; bestDays = d }

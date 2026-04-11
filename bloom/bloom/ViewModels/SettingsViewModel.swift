@@ -31,6 +31,12 @@ final class SettingsViewModel {
 
     // Display
     var useCelsius: Bool = false
+    var selectedTheme: AppTheme = ThemeManager.shared.activeTheme {
+        didSet {
+            ThemeManager.shared.activeTheme = selectedTheme
+            savePreferences()
+        }
+    }
 
     // Notification permission
     var notificationPermissionGranted: Bool = false
@@ -49,6 +55,7 @@ final class SettingsViewModel {
         fertileWindowAlertEnabled = defaults.bool(forKey: "bloom.fertileWindowAlertEnabled")
         healthKitEnabled = defaults.bool(forKey: "bloom.healthKitEnabled")
         useCelsius = defaults.bool(forKey: "bloom.useCelsius")
+        selectedTheme = ThemeManager.shared.activeTheme
 
         Task {
             notificationPermissionGranted = await NotificationService.shared.isAuthorized

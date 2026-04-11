@@ -300,7 +300,7 @@ struct DailyLogView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
+                .fill(BloomTheme.cardFill)
         }
     }
 }

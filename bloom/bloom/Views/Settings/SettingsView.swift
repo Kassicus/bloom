@@ -66,6 +66,58 @@ struct SettingsView: View {
             }
 
             Section("Display") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "paintpalette.fill")
+                            .foregroundStyle(BloomTheme.brand)
+                            .frame(width: 24)
+                        Text("Theme")
+                    }
+
+                    HStack(spacing: 12) {
+                        ForEach(AppTheme.allCases) { theme in
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    viewModel.selectedTheme = theme
+                                }
+                            } label: {
+                                VStack(spacing: 6) {
+                                    HStack(spacing: 4) {
+                                        ForEach(theme.swatchColors, id: \.self) { color in
+                                            Circle()
+                                                .fill(color)
+                                                .frame(width: 18, height: 18)
+                                        }
+                                    }
+                                    .padding(8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(theme.colors.faintest)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .strokeBorder(
+                                                viewModel.selectedTheme == theme ? theme.colors.brand : .clear,
+                                                lineWidth: 2
+                                            )
+                                    )
+
+                                    Text(theme.label)
+                                        .font(.caption)
+                                        .foregroundStyle(viewModel.selectedTheme == theme ? BloomTheme.brand : .secondary)
+
+                                    Text(theme.description)
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.vertical, 4)
+
                 Toggle(isOn: Binding(
                     get: { viewModel.useCelsius },
                     set: {
@@ -117,11 +169,33 @@ struct SettingsView: View {
                 }
             }
 
+            Section("iCloud Sync") {
+                HStack {
+                    Image(systemName: "icloud.fill")
+                        .foregroundStyle(BloomTheme.brand)
+                        .frame(width: 24)
+                    Text("Sync Status")
+                    Spacer()
+                    Text(FileManager.default.ubiquityIdentityToken != nil ? "Active" : "Unavailable")
+                        .foregroundStyle(FileManager.default.ubiquityIdentityToken != nil ? .green : .secondary)
+                }
+
+                if FileManager.default.ubiquityIdentityToken != nil {
+                    Text("Your data syncs automatically across all devices signed into the same iCloud account.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Sign in to iCloud in Settings to enable sync across your devices.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("About") {
                 HStack {
                     Text("Version")
                     Spacer()
-                    Text("1.0")
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1")
                         .foregroundStyle(.secondary)
                 }
 

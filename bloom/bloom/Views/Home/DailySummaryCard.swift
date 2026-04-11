@@ -42,7 +42,7 @@ struct DailySummaryCard: View {
         .padding()
         .background {
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
+                .fill(BloomTheme.cardFill)
         }
     }
 }

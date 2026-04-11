@@ -126,7 +126,7 @@ final class DailyLogViewModel {
         modelContext.insert(entry)
         try? modelContext.save()
 
-        intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+        intercourseEntries = (log.intercourseEntries ?? []).sorted { $0.dateTime < $1.dateTime }
         predictionService.updatePredictions()
     }
 
@@ -135,7 +135,7 @@ final class DailyLogViewModel {
         try? modelContext.save()
 
         if let log = currentLog {
-            intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+            intercourseEntries = (log.intercourseEntries ?? []).sorted { $0.dateTime < $1.dateTime }
         } else {
             intercourseEntries = []
         }
@@ -152,7 +152,7 @@ final class DailyLogViewModel {
         try? modelContext.save()
 
         if let log = currentLog {
-            intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+            intercourseEntries = (log.intercourseEntries ?? []).sorted { $0.dateTime < $1.dateTime }
         }
     }
 
@@ -192,7 +192,7 @@ final class DailyLogViewModel {
             cervicalMucus = log.cervicalMucus
             opkResult = log.opkResult
             symptoms = Set(log.symptoms)
-            intercourseEntries = log.intercourseEntries.sorted { $0.dateTime < $1.dateTime }
+            intercourseEntries = (log.intercourseEntries ?? []).sorted { $0.dateTime < $1.dateTime }
             notes = log.notes ?? ""
         } else {
             isOnPeriod = false

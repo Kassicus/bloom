@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class IntercourseEntry {
-    var dateTime: Date
+    var dateTime: Date = Date.distantPast
     var notes: String?
     var dailyLog: DailyLog?
 

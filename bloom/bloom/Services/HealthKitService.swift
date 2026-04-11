@@ -157,7 +157,7 @@ final class HealthKitService {
             try? await saveOPKResult(date: date, result: opk)
         }
 
-        for entry in log.intercourseEntries {
+        for entry in log.intercourseEntries ?? [] {
             try? await saveSexualActivity(date: entry.dateTime)
         }
     }

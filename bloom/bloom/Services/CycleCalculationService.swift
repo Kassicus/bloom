@@ -41,7 +41,7 @@ nonisolated struct CycleCalculationService {
 
     // MARK: - Fertility
 
-    /// Returns the fertility level for a given date in the cycle.
+    /// Returns the fertility level for a given date in the cycle using calendar-based ovulation.
     ///
     /// `daysBeforeOvulation` (positive = ovulation is in the future):
     /// - 0-1: Peak (~20-31% per-cycle conception probability)
@@ -59,6 +59,11 @@ nonisolated struct CycleCalculationService {
             cycleLength: cycleLength,
             lutealPhaseLength: lutealPhaseLength
         )
+        return fertilityLevel(ovulationDate: ovulationDate, on: date)
+    }
+
+    /// Returns the fertility level relative to a known or refined ovulation date.
+    static func fertilityLevel(ovulationDate: Date, on date: Date = .now) -> FertilityLevel {
         // Positive = ovulation is in the future (date is before ovulation)
         let daysBeforeOvulation = date.startOfDay.daysBetween(ovulationDate)
 
@@ -89,6 +94,28 @@ nonisolated struct CycleCalculationService {
             )
         )
         return window.contains(date.startOfDay)
+    }
+
+    /// Adjusts the base fertility level upward when today's logged data contains strong
+    /// real-time indicators. Never lowers the level — only boosts.
+    ///
+    /// - OPK positive: at least `.peak` (ovulation imminent)
+    /// - OPK near-positive or egg white mucus: at least `.high` (fertile window likely)
+    /// - Watery mucus: at least `.high` if base is `.low` (approaching peak)
+    static func adjustedFertilityLevel(base: FertilityLevel, log: DailyLog?) -> FertilityLevel {
+        guard let log else { return base }
+
+        // OPK positive overrides to peak
+        if log.opkResult == .positive {
+            return .peak
+        }
+
+        // Strong fertility signals boost to at least high (never lower peak to high)
+        if log.opkResult == .nearPositive || log.cervicalMucus == .eggWhite || log.cervicalMucus == .watery {
+            return base == .peak ? .peak : .high
+        }
+
+        return base
     }
 
     // MARK: - Ovulation Estimation
@@ -123,11 +150,33 @@ nonisolated struct CycleCalculationService {
         lastCycleStart.startOfDay.addingDays(Int(round(averageCycleLength)))
     }
 
-    /// Calculates the average cycle length from completed cycles.
+    /// Calculates a weighted average cycle length from completed cycles.
+    /// Recent cycles are weighted more heavily since cycle length can drift with age,
+    /// stress, and health changes. Uses exponential decay: most recent cycle gets weight 1.0,
+    /// each older cycle is multiplied by 0.7. Falls back to simple mean with < 3 cycles.
     static func averageCycleLength(from cycles: [Cycle]) -> Double? {
-        let completedLengths = cycles.compactMap { $0.cycleLength }
-        guard !completedLengths.isEmpty else { return nil }
-        return Double(completedLengths.reduce(0, +)) / Double(completedLengths.count)
+        let completedCycles = cycles
+            .filter { $0.cycleLength != nil }
+            .sorted { $0.startDate > $1.startDate } // Most recent first
+        let lengths = completedCycles.compactMap { $0.cycleLength }
+        guard !lengths.isEmpty else { return nil }
+
+        // Simple mean when insufficient data for meaningful weighting
+        guard lengths.count >= 3 else {
+            return Double(lengths.reduce(0, +)) / Double(lengths.count)
+        }
+
+        let decay = 0.7
+        var weightedSum = 0.0
+        var totalWeight = 0.0
+
+        for (index, length) in lengths.enumerated() {
+            let weight = pow(decay, Double(index))
+            weightedSum += Double(length) * weight
+            totalWeight += weight
+        }
+
+        return weightedSum / totalWeight
     }
 
     /// Calculates the standard deviation of cycle lengths.
@@ -210,7 +259,7 @@ nonisolated struct CycleCalculationService {
     // MARK: - Refined Ovulation Estimate
 
     /// Combines multiple data sources to produce the best ovulation estimate.
-    /// Priority: OPK positive (most actionable) > BBT shift (most reliable retrospectively) > calendar.
+    /// Priority: OPK positive > OPK near-positive > BBT shift > EWCM peak > calendar.
     static func refineOvulationEstimate(
         cycleStart: Date,
         cycleLength: Int,
@@ -226,12 +275,30 @@ nonisolated struct CycleCalculationService {
             return (firstPositive.date.addingDays(1), false)
         }
 
-        // 2. BBT shift — retrospective confirmation (most accurate)
+        // 2. OPK near-positive — LH is rising, ovulation likely in ~2-3 days
+        let opkNearPositiveLogs = logs
+            .filter { $0.opkResult == .nearPositive }
+            .sorted { $0.date < $1.date }
+
+        if let firstNearPositive = opkNearPositiveLogs.first {
+            return (firstNearPositive.date.addingDays(2), false)
+        }
+
+        // 3. BBT shift — retrospective confirmation (most accurate)
         if let bbtOvulation = detectOvulationFromBBT(logs: logs) {
             return (bbtOvulation, true)
         }
 
-        // 3. Fall back to calendar-based estimate
+        // 4. Egg white cervical mucus — typically appears 1-2 days before ovulation
+        let ewcmLogs = logs
+            .filter { $0.cervicalMucus == .eggWhite }
+            .sorted { $0.date < $1.date }
+
+        if let firstEWCM = ewcmLogs.first {
+            return (firstEWCM.date.addingDays(1), false)
+        }
+
+        // 5. Fall back to calendar-based estimate
         return (estimatedOvulationDate(cycleStart: cycleStart, cycleLength: cycleLength, lutealPhaseLength: lutealPhaseLength), false)
     }
 

@@ -71,15 +71,9 @@ final class PredictionService {
             lutealPhaseLength: effectiveLutealPhaseLength,
             on: today
         )
-        currentFertilityLevel = CycleCalculationService.fertilityLevel(
-            cycleStart: cycle.startDate,
-            cycleLength: effectiveCycleLength,
-            lutealPhaseLength: effectiveLutealPhaseLength,
-            on: today
-        )
 
-        // Ovulation — refine with available data
-        let logs = cycle.dailyLogs
+        // Ovulation — refine with available data BEFORE computing fertility level
+        let logs = cycle.dailyLogs ?? []
         let refined = CycleCalculationService.refineOvulationEstimate(
             cycleStart: cycle.startDate,
             cycleLength: effectiveCycleLength,
@@ -91,6 +85,11 @@ final class PredictionService {
         cycle.isOvulationConfirmed = refined.confirmed
 
         currentFertileWindow = CycleCalculationService.fertileWindowRange(ovulationDate: refined.date)
+
+        // Fertility level uses the refined ovulation date, boosted by today's real-time signals
+        let baseFertility = CycleCalculationService.fertilityLevel(ovulationDate: refined.date, on: today)
+        let todayLog = logs.first { $0.date.startOfDay == today }
+        currentFertilityLevel = CycleCalculationService.adjustedFertilityLevel(base: baseFertility, log: todayLog)
 
         if let avg = avgCycleLength {
             predictedNextPeriodStart = CycleCalculationService.predictNextPeriodStart(

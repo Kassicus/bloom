@@ -114,7 +114,7 @@ struct HomeView: View {
             .padding()
             .background {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
+                    .fill(BloomTheme.cardFill)
             }
         }
     }
@@ -245,7 +245,7 @@ struct HomeView: View {
         .padding()
         .background {
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
+                .fill(BloomTheme.cardFill)
         }
     }
 
