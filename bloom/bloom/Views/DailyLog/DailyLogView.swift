@@ -3,6 +3,7 @@ import SwiftData
 
 struct DailyLogView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let predictionService: PredictionService
     @State private var viewModel: DailyLogViewModel?
 
@@ -31,6 +32,8 @@ struct DailyLogView: View {
         }
     }
 
+    private var isWide: Bool { sizeClass == .regular }
+
     @ViewBuilder
     private func logContent(viewModel: DailyLogViewModel) -> some View {
         ScrollView {
@@ -46,16 +49,30 @@ struct DailyLogView: View {
                 // Completion indicator
                 completionRing(viewModel: viewModel)
 
-                // Log sections
-                periodSection(viewModel: viewModel)
-                bbtSection(viewModel: viewModel)
-                mucusSection(viewModel: viewModel)
-                opkSection(viewModel: viewModel)
-                intercourseSection(viewModel: viewModel)
-                symptomSection(viewModel: viewModel)
-                notesSection(viewModel: viewModel)
+                // Log sections — 2 columns on wide screens
+                if isWide {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        periodSection(viewModel: viewModel)
+                        bbtSection(viewModel: viewModel)
+                        mucusSection(viewModel: viewModel)
+                        opkSection(viewModel: viewModel)
+                        intercourseSection(viewModel: viewModel)
+                        symptomSection(viewModel: viewModel)
+                    }
+                    notesSection(viewModel: viewModel)
+                } else {
+                    periodSection(viewModel: viewModel)
+                    bbtSection(viewModel: viewModel)
+                    mucusSection(viewModel: viewModel)
+                    opkSection(viewModel: viewModel)
+                    intercourseSection(viewModel: viewModel)
+                    symptomSection(viewModel: viewModel)
+                    notesSection(viewModel: viewModel)
+                }
             }
-            .padding()
+            .padding(isWide ? 24 : 16)
+            .frame(maxWidth: 900)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 

@@ -8,6 +8,7 @@ struct CalendarDayCell: View {
     let fertility: FertilityLevel?
     let isOnPeriod: Bool
     let onTap: () -> Void
+    var minCellHeight: CGFloat = 40
 
     private let calendar = Calendar.current
 
@@ -28,7 +29,7 @@ struct CalendarDayCell: View {
                         .font(.system(size: 8))
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: minCellHeight)
             .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {

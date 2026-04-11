@@ -3,6 +3,7 @@ import SwiftData
 
 struct CalendarView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let predictionService: PredictionService
     @State private var viewModel: CalendarViewModel?
 
@@ -51,6 +52,8 @@ struct CalendarView: View {
         }
     }
 
+    private var isWide: Bool { sizeClass == .regular }
+
     @ViewBuilder
     private func calendarContent(viewModel: CalendarViewModel) -> some View {
         ScrollView {
@@ -73,9 +76,13 @@ struct CalendarView: View {
                         .padding(.top, 8)
                 }
             }
-            .padding()
+            .padding(isWide ? 24 : 16)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
+
+    private var cellHeight: CGFloat { isWide ? 56 : 40 }
 
     private func monthHeader(viewModel: CalendarViewModel) -> some View {
         HStack {
@@ -121,11 +128,12 @@ struct CalendarView: View {
                         phase: viewModel.phaseForDate(date),
                         fertility: viewModel.fertilityForDate(date),
                         isOnPeriod: viewModel.isOnPeriod(date),
-                        onTap: { viewModel.selectedDate = date }
+                        onTap: { viewModel.selectedDate = date },
+                        minCellHeight: cellHeight
                     )
                 } else {
                     Color.clear
-                        .frame(minHeight: 40)
+                        .frame(minHeight: cellHeight)
                 }
             }
         }

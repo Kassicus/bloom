@@ -102,14 +102,23 @@ final class CalendarViewModel {
     }
 
     func isOnPeriod(_ date: Date) -> Bool {
-        if let log = dailyLog(for: date), log.isOnPeriod {
-            return true
+        guard let cycle = cycleContaining(date) else {
+            // No cycle — check explicit log only
+            return dailyLog(for: date)?.isOnPeriod == true
         }
-        // If no explicit log, infer from cycle phase
-        guard let cycle = cycleContaining(date) else { return false }
+
         let day = CycleCalculationService.currentCycleDay(cycleStart: cycle.startDate, on: date)
-        let periodLen = cycle.periodLength ?? BloomConstants.defaultPeriodLength
-        return day <= periodLen
+
+        // If cycle has a known period length, use it as the source of truth
+        if let periodLen = cycle.periodLength {
+            return day <= periodLen
+        }
+
+        // Otherwise check the explicit log, or infer from default period length
+        if let log = dailyLog(for: date) {
+            return log.isOnPeriod
+        }
+        return day <= BloomConstants.defaultPeriodLength
     }
 
     func dailyLog(for date: Date) -> DailyLog? {
@@ -155,8 +164,16 @@ final class CalendarViewModel {
 
     func endPeriod(on date: Date) {
         guard let cycle = predictionService.currentCycle else { return }
-        cycle.endDate = date.startOfDay
-        cycle.periodLength = cycle.startDate.daysBetween(date.startOfDay) + 1
+        let endDate = date.startOfDay
+        cycle.endDate = endDate
+        cycle.periodLength = cycle.startDate.daysBetween(endDate) + 1
+
+        // Clear isOnPeriod on any DailyLog entries after the end date
+        for log in (cycle.dailyLogs ?? []) where log.isOnPeriod && log.date > endDate {
+            log.isOnPeriod = false
+            log.flowIntensity = nil
+        }
+
         save()
         predictionService.updatePredictions()
     }

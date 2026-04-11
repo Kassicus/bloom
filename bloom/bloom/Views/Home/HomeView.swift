@@ -3,6 +3,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let predictionService: PredictionService
     @State private var viewModel: HomeViewModel?
 
@@ -32,24 +33,117 @@ struct HomeView: View {
         }
     }
 
+    private var isWide: Bool { sizeClass == .regular }
+
     @ViewBuilder
     private func homeContent(viewModel: HomeViewModel) -> some View {
         ScrollView {
-            VStack(spacing: 20) {
-                if viewModel.hasCycleData {
-                    activeCycleContent(viewModel: viewModel)
-                } else {
+            if isWide && viewModel.hasCycleData {
+                wideActiveCycleContent(viewModel: viewModel)
+            } else if !isWide && viewModel.hasCycleData {
+                VStack(spacing: 20) {
+                    compactActiveCycleContent(viewModel: viewModel)
+                }
+                .padding()
+            } else {
+                VStack(spacing: 20) {
                     emptyStateView
                 }
+                .padding()
             }
-            .padding()
         }
         .refreshable {
             viewModel.refresh()
         }
     }
 
-    private func activeCycleContent(viewModel: HomeViewModel) -> some View {
+    // MARK: - iPad (Wide) Layout
+
+    private func wideActiveCycleContent(viewModel: HomeViewModel) -> some View {
+        VStack(spacing: 24) {
+            // Fertile window banner — full width
+            if viewModel.isInFertileWindow {
+                fertileWindowBanner(viewModel: viewModel)
+            }
+
+            // Top row: Ring + status cards side by side
+            HStack(alignment: .top, spacing: 24) {
+                // Left: ring + cycle day
+                VStack(spacing: 12) {
+                    Text(viewModel.cycleDayText)
+                        .font(.title.bold())
+
+                    CycleRingView(
+                        segments: viewModel.cycleRingSegments,
+                        progress: viewModel.cycleProgress,
+                        cycleDay: viewModel.predictionService.currentCycleDay,
+                        phase: viewModel.predictionService.currentPhase,
+                        ringSize: 280
+                    )
+                }
+                .frame(maxWidth: .infinity)
+
+                // Right: fertility badge + phase card + countdowns
+                VStack(spacing: 16) {
+                    FertilityBadgeView(
+                        level: viewModel.fertilityLevel,
+                        recommendation: viewModel.recommendationText
+                    )
+
+                    if let phase = viewModel.predictionService.currentPhase {
+                        phaseEducationCard(phase: phase)
+                    }
+
+                    countdownCards(viewModel: viewModel)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // Bottom row: conception score + confidence + summary in 2 columns
+            HStack(alignment: .top, spacing: 24) {
+                VStack(spacing: 16) {
+                    if viewModel.conceptionScore != nil || viewModel.isInFertileWindow {
+                        let breakdown = viewModel.conceptionScoreBreakdown
+                        ConceptionScoreView(
+                            score: viewModel.conceptionScore,
+                            timingScore: breakdown.timing,
+                            dataQualityScore: breakdown.dataQuality,
+                            favorableSignsScore: breakdown.favorableSigns,
+                            isCompact: true
+                        )
+                    }
+
+                    if viewModel.predictionService.completedCycleCount > 0 {
+                        confidenceBar(viewModel: viewModel)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(spacing: 16) {
+                    DailySummaryCard(
+                        loggedItems: viewModel.todayLoggedItems,
+                        hasData: viewModel.todayHasData
+                    )
+
+                    EducationalTipView(
+                        title: "How to improve prediction accuracy",
+                        detail: "OPK tests predict ovulation 24-48 hours in advance and are the most actionable indicator. Cervical mucus provides real-time fertility cues. BBT confirms ovulation after it occurs and helps the app learn your personal luteal phase length for more accurate future predictions. Using all three gives the most complete picture."
+                    )
+                    .padding()
+                    .background {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(BloomTheme.cardFill)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(24)
+    }
+
+    // MARK: - iPhone (Compact) Layout
+
+    private func compactActiveCycleContent(viewModel: HomeViewModel) -> some View {
         VStack(spacing: 20) {
             // Fertile window banner
             if viewModel.isInFertileWindow {

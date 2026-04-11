@@ -7,7 +7,7 @@ struct CycleRingView: View {
     let phase: CyclePhase?
 
     private let lineWidth: CGFloat = 14
-    private let ringSize: CGFloat = 220
+    var ringSize: CGFloat = 220
 
     var body: some View {
         ZStack {

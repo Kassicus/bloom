@@ -3,6 +3,7 @@ import SwiftData
 
 struct InsightsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let predictionService: PredictionService
     @State private var viewModel: InsightsViewModel?
 
@@ -39,6 +40,7 @@ struct InsightsView: View {
             VStack(spacing: 16) {
                 // Cycle statistics
                 CycleStatsView(
+                    columnCount: sizeClass == .regular ? 3 : 2,
                     averageCycleLength: viewModel.averageCycleLength,
                     averagePeriodLength: viewModel.averagePeriodLength,
                     cycleLengthRange: viewModel.cycleLengthRange,
@@ -58,7 +60,8 @@ struct InsightsView: View {
                     canSelectPrevious: viewModel.canSelectPrevious,
                     canSelectNext: viewModel.canSelectNext,
                     onPrevious: viewModel.selectPreviousCycle,
-                    onNext: viewModel.selectNextCycle
+                    onNext: viewModel.selectNextCycle,
+                    chartHeight: sizeClass == .regular ? 300 : 200
                 )
 
                 // Conception score
@@ -75,7 +78,9 @@ struct InsightsView: View {
                 // Understanding Your Cycle
                 understandingYourCycleSection
             }
-            .padding()
+            .padding(sizeClass == .regular ? 24 : 16)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .refreshable {
             viewModel.refresh()

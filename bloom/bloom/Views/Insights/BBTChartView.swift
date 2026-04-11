@@ -12,6 +12,7 @@ struct BBTChartView: View {
     let canSelectNext: Bool
     let onPrevious: () -> Void
     let onNext: () -> Void
+    var chartHeight: CGFloat = 200
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -27,7 +28,7 @@ struct BBTChartView: View {
                 emptyState
             } else {
                 chart
-                    .frame(height: 200)
+                    .frame(height: chartHeight)
 
                 legend
             }

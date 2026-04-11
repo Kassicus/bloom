@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CycleStatsView: View {
+    var columnCount: Int = 2
     let averageCycleLength: Double?
     let averagePeriodLength: Double?
     let cycleLengthRange: ClosedRange<Int>?
@@ -27,7 +28,7 @@ struct CycleStatsView: View {
     }
 
     private var statsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: columnCount), spacing: 12) {
             statCard(
                 title: "Avg Cycle",
                 value: averageCycleLength.map { String(format: "%.0f days", $0) } ?? "—",

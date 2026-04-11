@@ -19,24 +19,29 @@ struct CycleTimelineView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 20)
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(cycles, id: \.startDate) { cycle in
-                            cycleBar(cycle)
+                GeometryReader { geo in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(cycles, id: \.startDate) { cycle in
+                                cycleBar(cycle, availableWidth: geo.size.width)
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
                 }
+                .frame(height: 48)
             }
         }
         .onAppear { loadCycles() }
     }
 
-    private func cycleBar(_ cycle: Cycle) -> some View {
+    private func cycleBar(_ cycle: Cycle, availableWidth: CGFloat) -> some View {
         let length = cycle.cycleLength ?? BloomConstants.defaultCycleLength
         let periodLen = cycle.periodLength ?? BloomConstants.defaultPeriodLength
         let ovulationDay = length - BloomConstants.defaultLutealPhaseLength
-        let scale: CGFloat = 3.5
+        // Scale each bar so ~3 cycles fit in the visible width
+        let targetBars = max(1, cycles.count > 3 ? 3 : cycles.count)
+        let scale = (availableWidth - CGFloat(targetBars - 1) * 8) / (CGFloat(targetBars) * CGFloat(BloomConstants.defaultCycleLength))
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 0) {
