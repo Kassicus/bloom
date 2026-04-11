@@ -1,10 +1,3 @@
-//
-//  bloomApp.swift
-//  bloom
-//
-//  Created by Kason Suchow on 4/11/26.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -12,7 +5,8 @@ import SwiftData
 struct bloomApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Cycle.self,
+            DailyLog.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
