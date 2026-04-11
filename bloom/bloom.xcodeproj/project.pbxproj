@@ -401,6 +401,7 @@
 				DEVELOPMENT_TEAM = 364X389QMX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Bloom reads your health data to sync menstrual cycle tracking information, including period dates, basal body temperature, and fertility indicators.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Bloom saves your cycle tracking data to Apple Health so it stays in sync across your health apps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -436,6 +437,7 @@
 				DEVELOPMENT_TEAM = 364X389QMX;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Bloom reads your health data to sync menstrual cycle tracking information, including period dates, basal body temperature, and fertility indicators.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Bloom saves your cycle tracking data to Apple Health so it stays in sync across your health apps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
