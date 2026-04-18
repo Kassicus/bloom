@@ -19,8 +19,11 @@ enum Symptom: String, Codable, CaseIterable, Identifiable {
     case moodSwings
     case calm
 
-    // Energy
+    // Energy (ordered high → low)
     case energetic
+    case productive
+    case balanced
+    case sluggish
     case tired
     case exhausted
 
@@ -49,6 +52,9 @@ enum Symptom: String, Codable, CaseIterable, Identifiable {
         case .moodSwings: "Mood Swings"
         case .calm: "Calm"
         case .energetic: "Energetic"
+        case .productive: "Productive"
+        case .balanced: "Balanced"
+        case .sluggish: "Sluggish"
         case .tired: "Tired"
         case .exhausted: "Exhausted"
         case .cravings: "Cravings"
@@ -75,6 +81,9 @@ enum Symptom: String, Codable, CaseIterable, Identifiable {
         case .moodSwings: "arrow.up.arrow.down"
         case .calm: "leaf"
         case .energetic: "bolt"
+        case .productive: "checkmark.circle"
+        case .balanced: "equal.circle"
+        case .sluggish: "tortoise"
         case .tired: "moon.zzz"
         case .exhausted: "battery.0percent"
         case .cravings: "fork.knife"
@@ -116,6 +125,12 @@ enum Symptom: String, Codable, CaseIterable, Identifiable {
             "A sense of calm is common in the mid-follicular phase as estrogen steadily rises."
         case .energetic:
             "Energy typically peaks around ovulation when estrogen is highest."
+        case .productive:
+            "Focus and drive often run high in the follicular phase as estrogen rises."
+        case .balanced:
+            "Steady, even energy — most common in the mid-follicular and early luteal phases."
+        case .sluggish:
+            "A slow start to the day is common in the early menstrual phase and mid-luteal phase."
         case .tired:
             "Mild tiredness is common in the early menstrual phase and luteal phase."
         case .exhausted:
@@ -137,7 +152,7 @@ enum Symptom: String, Codable, CaseIterable, Identifiable {
             .physical
         case .happy, .sad, .anxious, .irritable, .moodSwings, .calm:
             .mood
-        case .energetic, .tired, .exhausted:
+        case .energetic, .productive, .balanced, .sluggish, .tired, .exhausted:
             .energy
         case .cravings, .insomnia, .highLibido, .lowLibido:
             .other

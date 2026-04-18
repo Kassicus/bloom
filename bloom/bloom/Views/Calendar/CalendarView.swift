@@ -128,6 +128,7 @@ struct CalendarView: View {
                         phase: viewModel.phaseForDate(date),
                         fertility: viewModel.fertilityForDate(date),
                         isOnPeriod: viewModel.isOnPeriod(date),
+                        isPredictedNextPeriod: viewModel.isPredictedNextPeriodStart(date),
                         onTap: { viewModel.selectedDate = date },
                         minCellHeight: cellHeight
                     )
@@ -244,6 +245,19 @@ struct CalendarView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+
+            // Estimated next period marker
+            HStack(spacing: 4) {
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(
+                        CyclePhase.menstrual.color,
+                        style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])
+                    )
+                    .frame(width: 16, height: 16)
+                Text("Estimated next period")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             // Phase descriptions

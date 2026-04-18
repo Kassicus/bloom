@@ -90,6 +90,14 @@ final class CalendarViewModel {
         )
     }
 
+    func isPredictedNextPeriodStart(_ date: Date) -> Bool {
+        guard let predicted = predictionService.predictedNextPeriodStart else { return false }
+        guard date.startOfDay == predicted.startOfDay else { return false }
+        if cycleContaining(date) != nil { return false }
+        if dailyLog(for: date)?.isOnPeriod == true { return false }
+        return true
+    }
+
     func fertilityForDate(_ date: Date) -> FertilityLevel? {
         guard let cycle = cycleContaining(date) else { return nil }
         let effectiveLength = effectiveCycleLength(for: cycle)
@@ -213,8 +221,14 @@ final class CalendarViewModel {
                         return cycle
                     }
                 } else {
-                    // Active cycle (no end known yet) — assume this date belongs to it
-                    return cycle
+                    // Active cycle — bound by expected length so phases don't extend
+                    // indefinitely into the future. Past this bound we show only a
+                    // predicted next-period marker (see isPredictedNextPeriodStart).
+                    let length = effectiveCycleLength(for: cycle)
+                    let cycleEnd = cycle.startDate.addingDays(length - 1)
+                    if normalizedDate <= cycleEnd {
+                        return cycle
+                    }
                 }
             }
         }
