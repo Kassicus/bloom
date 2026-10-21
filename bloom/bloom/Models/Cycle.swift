@@ -6,7 +6,9 @@ final class Cycle {
     var startDate: Date = Date.distantPast
     var endDate: Date?
 
-    @Relationship(deleteRule: .cascade, inverse: \DailyLog.cycle)
+    // Cycles are derived from logged period days and get recreated when periods are edited,
+    // so deleting one must never take the user's logs with it.
+    @Relationship(deleteRule: .nullify, inverse: \DailyLog.cycle)
     var dailyLogs: [DailyLog]?
 
     // Calculated / cached values updated by CycleCalculationService

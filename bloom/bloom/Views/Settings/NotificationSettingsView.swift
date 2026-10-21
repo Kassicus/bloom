@@ -2,10 +2,21 @@ import SwiftUI
 
 struct NotificationSettingsView: View {
     @Bindable var viewModel: SettingsViewModel
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Form {
-            if !viewModel.notificationPermissionGranted {
+            if viewModel.notificationStatus == .denied {
+                Section {
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                            openURL(url)
+                        }
+                    }
+                } footer: {
+                    Text("Notifications are turned off for Bloom. Turn them on in Settings to get reminders.")
+                }
+            } else if !viewModel.notificationPermissionGranted {
                 Section {
                     Button("Enable Notifications") {
                         Task {
@@ -68,5 +79,8 @@ struct NotificationSettingsView: View {
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await viewModel.refreshNotificationStatus()
+        }
     }
 }

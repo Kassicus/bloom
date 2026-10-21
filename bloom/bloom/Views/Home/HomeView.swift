@@ -2,8 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(AppNavigation.self) private var navigation
+    @AppStorage(Preferences.Key.useCelsius) private var useCelsius = false
     let predictionService: PredictionService
     @State private var viewModel: HomeViewModel?
 
@@ -19,14 +20,13 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Bloom")
-                        .font(BloomTheme.appTitle)
+                    BloomTheme.brandText("Bloom", font: BloomTheme.appTitle)
                         .foregroundStyle(BloomTheme.brand)
                 }
             }
             .onAppear {
                 if viewModel == nil {
-                    viewModel = HomeViewModel(modelContext: modelContext, predictionService: predictionService)
+                    viewModel = HomeViewModel(predictionService: predictionService)
                 }
                 viewModel?.refresh()
             }
@@ -120,10 +120,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
 
                 VStack(spacing: 16) {
-                    DailySummaryCard(
-                        loggedItems: viewModel.todayLoggedItems,
-                        hasData: viewModel.todayHasData
-                    )
+                    todaySummary(viewModel: viewModel)
 
                     EducationalTipView(
                         title: "How to improve prediction accuracy",
@@ -195,10 +192,7 @@ struct HomeView: View {
             }
 
             // Daily summary
-            DailySummaryCard(
-                loggedItems: viewModel.todayLoggedItems,
-                hasData: viewModel.todayHasData
-            )
+            todaySummary(viewModel: viewModel)
 
             // How to improve accuracy
             EducationalTipView(
@@ -211,6 +205,18 @@ struct HomeView: View {
                     .fill(BloomTheme.cardFill)
             }
         }
+    }
+
+    private func todaySummary(viewModel: HomeViewModel) -> some View {
+        Button {
+            navigation.openLog(for: .now)
+        } label: {
+            DailySummaryCard(
+                loggedItems: viewModel.todayLoggedItems(unit: TemperatureUnit(useCelsius: useCelsius)),
+                hasData: viewModel.todayHasData
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func phaseEducationCard(phase: CyclePhase) -> some View {
@@ -360,15 +366,23 @@ struct HomeView: View {
                 phase: nil
             )
 
-            Text("Welcome to Bloom")
-                .font(BloomTheme.sectionTitle)
+            BloomTheme.brandText("Welcome to Bloom")
                 .foregroundStyle(BloomTheme.brand)
 
-            Text("Start by logging your period on the Calendar tab to begin tracking your cycle and fertility.")
+            Text("Log the first day of your last period to start tracking your cycle and fertility.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+
+            Button {
+                navigation.openPeriodLogging()
+            } label: {
+                Label("Log Period", systemImage: "drop.fill")
+                    .padding(.horizontal, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(CyclePhase.menstrual.color)
 
             Spacer()
         }

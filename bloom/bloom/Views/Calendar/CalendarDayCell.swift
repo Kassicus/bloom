@@ -4,10 +4,7 @@ struct CalendarDayCell: View {
     let date: Date
     let isToday: Bool
     let isSelected: Bool
-    let phase: CyclePhase?
-    let fertility: FertilityLevel?
-    let isOnPeriod: Bool
-    var isPredictedNextPeriod: Bool = false
+    let info: DayInfo
     let onTap: () -> Void
     var minCellHeight: CGFloat = 40
 
@@ -20,21 +17,27 @@ struct CalendarDayCell: View {
                     .font(isToday ? .callout.bold() : .callout)
                     .foregroundStyle(foregroundColor)
 
-                // Phase letter indicator (hidden for predicted-next-period marker)
-                if let phase, !isPredictedNextPeriod {
-                    Text(phase.abbreviation)
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(phase.color)
-                } else {
-                    Text(" ")
-                        .font(.system(size: 8))
+                HStack(spacing: 2) {
+                    // Phase letter indicator (hidden on period days, which are already shaded)
+                    if let phase = info.phase, !info.isPeriod, !info.isPredictedPeriod {
+                        Text(phase.abbreviation)
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(phase.color.opacity(info.isProjected ? 0.6 : 1))
+                    }
+
+                    if let fertilityDot {
+                        Circle()
+                            .fill(fertilityDot)
+                            .frame(width: info.isOvulationDay ? 6 : 4, height: info.isOvulationDay ? 6 : 4)
+                    }
                 }
+                .frame(height: 10)
             }
             .frame(maxWidth: .infinity, minHeight: minCellHeight)
             .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
-                if isPredictedNextPeriod {
+                if info.isPredictedPeriod {
                     RoundedRectangle(cornerRadius: 8)
                         .strokeBorder(
                             CyclePhase.menstrual.color,
@@ -52,23 +55,44 @@ struct CalendarDayCell: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    /// Fertile days get a dot in their fertility color; ovulation day's dot is larger.
+    private var fertilityDot: Color? {
+        guard let fertility = info.fertility,
+              info.isInFertileWindow || fertility != .low,
+              !info.isPeriod else { return nil }
+        let color = fertility == .low ? FertilityLevel.high.color.opacity(0.5) : fertility.color
+        return info.isProjected ? color.opacity(0.6) : color
     }
 
     private var backgroundColor: Color {
-        if isOnPeriod {
+        if info.isPeriod {
             return CyclePhase.menstrual.color.opacity(0.25)
         }
-        if isPredictedNextPeriod {
+        if info.isPredictedPeriod {
             return .clear
         }
-        guard let phase else { return .clear }
-        return phase.color.opacity(0.12)
+        guard let phase = info.phase else { return .clear }
+        return phase.color.opacity(info.isProjected ? 0.06 : 0.12)
     }
 
     private var foregroundColor: Color {
-        if isOnPeriod || isPredictedNextPeriod {
+        if info.isPeriod || info.isPredictedPeriod {
             return CyclePhase.menstrual.color
         }
         return .primary
+    }
+
+    private var accessibilityText: String {
+        var parts = [date.formatted(.dateTime.weekday(.wide).month(.wide).day())]
+        if info.isPeriod { parts.append("period day") }
+        if info.isPredictedPeriod { parts.append("predicted period") }
+        if info.isOvulationDay { parts.append(info.isProjected ? "predicted ovulation" : "estimated ovulation") }
+        if let fertility = info.fertility, info.isInFertileWindow || fertility != .low {
+            parts.append(fertility.label)
+        }
+        return parts.joined(separator: ", ")
     }
 }
