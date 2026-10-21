@@ -2,11 +2,13 @@ import SwiftUI
 import Charts
 
 struct BBTChartView: View {
+    /// Temperatures in °F; converted to `unit` for display.
     let dataPoints: [BBTDataPoint]
     let coverlineTemp: Double?
     let ovulationDate: Date?
     let fertileWindowStart: Date?
     let fertileWindowEnd: Date?
+    let unit: TemperatureUnit
     let cycleLabel: String
     let canSelectPrevious: Bool
     let canSelectNext: Bool
@@ -57,7 +59,7 @@ struct BBTChartView: View {
 
             // Coverline
             if let coverline = coverlineTemp {
-                RuleMark(y: .value("Coverline", coverline))
+                RuleMark(y: .value("Coverline", unit.fromFahrenheit(coverline)))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 3]))
                     .foregroundStyle(BloomTheme.pinkDeep.opacity(0.6))
                     .annotation(position: .topLeading) {
@@ -71,14 +73,14 @@ struct BBTChartView: View {
             ForEach(dataPoints) { point in
                 LineMark(
                     x: .value("Date", point.date),
-                    y: .value("Temp", point.temperature)
+                    y: .value("Temp", unit.fromFahrenheit(point.temperature))
                 )
                 .foregroundStyle(BloomTheme.pinkLight)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(
                     x: .value("Date", point.date),
-                    y: .value("Temp", point.temperature)
+                    y: .value("Temp", unit.fromFahrenheit(point.temperature))
                 )
                 .foregroundStyle(pointColor(for: point))
                 .symbolSize(30)
@@ -89,7 +91,7 @@ struct BBTChartView: View {
                let point = dataPoints.first(where: { Calendar.current.isDate($0.date, inSameDayAs: ovDate) }) {
                 PointMark(
                     x: .value("Date", point.date),
-                    y: .value("Temp", point.temperature)
+                    y: .value("Temp", unit.fromFahrenheit(point.temperature))
                 )
                 .symbol(.diamond)
                 .symbolSize(80)
@@ -109,10 +111,10 @@ struct BBTChartView: View {
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading, values: .stride(by: 0.5)) { value in
+            AxisMarks(position: .leading, values: .stride(by: unit.chartStride)) { value in
                 AxisValueLabel {
                     if let temp = value.as(Double.self) {
-                        Text(String(format: "%.1f", temp))
+                        Text(unit.formatDisplayValue(temp))
                             .font(.caption2)
                     }
                 }
@@ -123,14 +125,13 @@ struct BBTChartView: View {
 
     // MARK: - Helpers
 
+    /// Y range in display units: at least 96.5–98.5°F, padded around the data.
     private var yDomain: ClosedRange<Double> {
         let temps = dataPoints.map(\.temperature)
-        guard let minT = temps.min(), let maxT = temps.max() else {
-            return 96.5...99.0
-        }
-        let floor = Swift.min(minT - 0.3, 96.5)
-        let ceil = Swift.max(maxT + 0.3, 98.5)
-        return floor...ceil
+        let padding = 0.3
+        let floor = Swift.min((temps.min() ?? 96.5) - padding, 96.5)
+        let ceil = Swift.max((temps.max() ?? 99.0) + padding, 98.5)
+        return unit.fromFahrenheit(floor)...unit.fromFahrenheit(ceil)
     }
 
     private var xStride: Int {

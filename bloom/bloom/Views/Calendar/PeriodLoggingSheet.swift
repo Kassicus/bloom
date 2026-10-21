@@ -4,26 +4,39 @@ struct PeriodLoggingSheet: View {
     let viewModel: CalendarViewModel
     @Environment(\.dismiss) private var dismiss
 
+    private enum Mode: Hashable {
+        case started
+        case ended
+    }
+
+    @State private var mode: Mode = .started
     @State private var startDate: Date = Date.now
     @State private var flowIntensity: FlowIntensity = .medium
-    @State private var isEndingPeriod = false
     @State private var endDate: Date = Date.now
-
-    private var hasActivePeriod: Bool {
-        guard let cycle = viewModel.predictionService.currentCycle else { return false }
-        return cycle.endDate == nil
-    }
 
     var body: some View {
         NavigationStack {
             Form {
-                if hasActivePeriod {
-                    endPeriodSection
+                if let ongoingStart = viewModel.ongoingPeriodStart {
+                    Section {
+                        Picker("What happened?", selection: $mode) {
+                            Text("Period started").tag(Mode.started)
+                            Text("Period ended").tag(Mode.ended)
+                        }
+                        .pickerStyle(.segmented)
+                        .listRowBackground(Color.clear)
+                    }
+
+                    if mode == .ended {
+                        endPeriodSection(start: ongoingStart)
+                    } else {
+                        startPeriodSection
+                    }
                 } else {
                     startPeriodSection
                 }
             }
-            .navigationTitle(hasActivePeriod ? "End Period" : "Log Period")
+            .navigationTitle("Log Period")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -37,8 +50,11 @@ struct PeriodLoggingSheet: View {
                     .bold()
                 }
             }
+            .onAppear {
+                endDate = viewModel.suggestedPeriodEnd
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     private var startPeriodSection: some View {
@@ -63,41 +79,41 @@ struct PeriodLoggingSheet: View {
                 .pickerStyle(.segmented)
             } header: {
                 Text("How heavy is the flow?")
+            } footer: {
+                Text("Bloom marks \(viewModel.expectedPeriodLength) days as your period. You can turn individual days on or off from the calendar or the Log tab.")
             }
         }
     }
 
-    private var endPeriodSection: some View {
+    private func endPeriodSection(start: Date) -> some View {
         Group {
-            if let cycle = viewModel.predictionService.currentCycle {
-                Section {
-                    HStack {
-                        Text("Period started")
-                        Spacer()
-                        Text(cycle.startDate.shortFormatted)
-                            .foregroundStyle(.secondary)
-                    }
+            Section {
+                HStack {
+                    Text("Period started")
+                    Spacer()
+                    Text(start.shortFormatted)
+                        .foregroundStyle(.secondary)
                 }
+            }
 
-                Section {
-                    DatePicker(
-                        "Last Day of Period",
-                        selection: $endDate,
-                        in: cycle.startDate...Date.now,
-                        displayedComponents: .date
-                    )
-                } header: {
-                    Text("When did your period end?")
-                }
+            Section {
+                DatePicker(
+                    "Last Day of Period",
+                    selection: $endDate,
+                    in: start...min(Date.now, start.addingDays(BloomConstants.maxPlausiblePeriodLength - 1)),
+                    displayedComponents: .date
+                )
+            } header: {
+                Text("When was the last day of your period?")
             }
         }
     }
 
     private func save() {
-        if hasActivePeriod {
-            viewModel.endPeriod(on: endDate)
+        if mode == .ended, viewModel.ongoingPeriodStart != nil {
+            viewModel.endPeriod(lastDay: endDate)
         } else {
-            viewModel.startPeriod(on: startDate, flow: flowIntensity)
+            viewModel.logPeriodStart(on: startDate, flow: flowIntensity)
         }
     }
 }

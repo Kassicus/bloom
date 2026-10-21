@@ -6,6 +6,7 @@ struct SettingsView: View {
     let predictionService: PredictionService
     @State private var viewModel: SettingsViewModel?
     @State private var showingDeleteConfirmation = false
+    @AppStorage(Preferences.Key.useCelsius) private var useCelsius = false
 
     var body: some View {
         NavigationStack {
@@ -19,17 +20,17 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Settings")
-                        .font(BloomTheme.sectionTitle)
+                    BloomTheme.brandText("Settings")
                         .foregroundStyle(BloomTheme.brand)
                 }
             }
             .onAppear {
                 if viewModel == nil {
-                    let vm = SettingsViewModel(modelContext: modelContext, predictionService: predictionService)
-                    vm.loadPreferences()
-                    viewModel = vm
+                    viewModel = SettingsViewModel(modelContext: modelContext, predictionService: predictionService)
                 }
+            }
+            .task {
+                await viewModel?.refreshNotificationStatus()
             }
         }
     }
@@ -118,13 +119,7 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
 
-                Toggle(isOn: Binding(
-                    get: { viewModel.useCelsius },
-                    set: {
-                        viewModel.useCelsius = $0
-                        viewModel.savePreferences()
-                    }
-                )) {
+                Toggle(isOn: $useCelsius) {
                     HStack {
                         Image(systemName: "thermometer")
                             .foregroundStyle(BloomTheme.pinkMedium)

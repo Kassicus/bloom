@@ -14,6 +14,9 @@ struct DailySummaryCard: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(BloomTheme.pinkDeep)
                 }
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.tertiary)
             }
 
             if hasData {
@@ -44,6 +47,7 @@ struct DailySummaryCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(BloomTheme.cardFill)
         }
+        .contentShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

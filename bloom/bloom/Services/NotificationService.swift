@@ -6,6 +6,9 @@ final class NotificationService {
 
     private let center = UNUserNotificationCenter.current()
 
+    /// What was last scheduled, so repeated refreshes with unchanged inputs are no-ops.
+    private var lastScheduled: ScheduleInputs?
+
     private init() {}
 
     // MARK: - Permission
@@ -18,16 +21,80 @@ final class NotificationService {
         }
     }
 
-    var isAuthorized: Bool {
+    var authorizationStatus: UNAuthorizationStatus {
         get async {
-            let settings = await center.notificationSettings()
-            return settings.authorizationStatus == .authorized
+            await center.notificationSettings().authorizationStatus
         }
     }
 
-    // MARK: - BBT Reminder
+    // MARK: - Scheduling
 
-    func scheduleBBTReminder(hour: Int, minute: Int) {
+    private struct ScheduleInputs: Equatable {
+        var bbtReminderEnabled: Bool
+        var bbtHour: Int
+        var bbtMinute: Int
+        var periodReminderEnabled: Bool
+        var fertileWindowAlertEnabled: Bool
+        var events: UpcomingEvents
+    }
+
+    /// Replaces all pending reminders based on current preferences and predictions.
+    ///
+    /// Reminders for the next few cycles are scheduled up front, so they keep arriving even if
+    /// the app isn't opened for a while; every prediction update reschedules them.
+    func refresh(events: UpcomingEvents, force: Bool = false) {
+        let inputs = ScheduleInputs(
+            bbtReminderEnabled: Preferences.bbtReminderEnabled,
+            bbtHour: Preferences.bbtReminderHour,
+            bbtMinute: Preferences.bbtReminderMinute,
+            periodReminderEnabled: Preferences.periodReminderEnabled,
+            fertileWindowAlertEnabled: Preferences.fertileWindowAlertEnabled,
+            events: events
+        )
+        guard force || inputs != lastScheduled else { return }
+        lastScheduled = inputs
+
+        center.removeAllPendingNotificationRequests()
+
+        if inputs.bbtReminderEnabled {
+            scheduleBBTReminder(hour: inputs.bbtHour, minute: inputs.bbtMinute)
+        }
+
+        if inputs.periodReminderEnabled {
+            for (index, date) in events.periodStarts.enumerated() {
+                schedule(
+                    id: "bloom.period.\(index)",
+                    title: "Period Expected",
+                    body: "Your period may start today. Open Bloom to log it.",
+                    category: "period_reminder",
+                    on: date
+                )
+            }
+        }
+
+        if inputs.fertileWindowAlertEnabled {
+            for (index, start) in events.fertileWindowStarts.enumerated() {
+                schedule(
+                    id: "bloom.fertile.\(index)",
+                    title: "Fertile Window Starting",
+                    body: "Your fertile window starts tomorrow. This is the best time for conception.",
+                    category: "fertile_window",
+                    on: start.addingDays(-1)
+                )
+            }
+            for (index, date) in events.ovulationDates.enumerated() {
+                schedule(
+                    id: "bloom.ovulation.\(index)",
+                    title: "Peak Fertility Today",
+                    body: "Today is likely your ovulation day — peak fertility for conception.",
+                    category: "ovulation_day",
+                    on: date
+                )
+            }
+        }
+    }
+
+    private func scheduleBBTReminder(hour: Int, minute: Int) {
         let content = UNMutableNotificationContent()
         content.title = "Log Your Temperature"
         content.body = "Take your BBT before getting out of bed for accurate tracking."
@@ -39,130 +106,22 @@ final class NotificationService {
         dateComponents.minute = minute
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-        let request = UNNotificationRequest(identifier: "bloom.bbt.daily", content: content, trigger: trigger)
-
-        center.add(request)
+        center.add(UNNotificationRequest(identifier: "bloom.bbt.daily", content: content, trigger: trigger))
     }
 
-    func cancelBBTReminder() {
-        center.removePendingNotificationRequests(withIdentifiers: ["bloom.bbt.daily"])
-    }
-
-    // MARK: - Period Reminder
-
-    func schedulePeriodReminder(expectedDate: Date) {
-        let content = UNMutableNotificationContent()
-        content.title = "Period Expected"
-        content.body = "Your period may start today. Open Bloom to log it."
-        content.sound = .default
-        content.categoryIdentifier = "period_reminder"
-
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour], from: expectedDate)
-        var triggerComponents = components
-        triggerComponents.hour = 9 // 9 AM on the expected day
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-        let request = UNNotificationRequest(identifier: "bloom.period.expected", content: content, trigger: trigger)
-
-        center.add(request)
-    }
-
-    func cancelPeriodReminder() {
-        center.removePendingNotificationRequests(withIdentifiers: ["bloom.period.expected"])
-    }
-
-    // MARK: - Fertile Window Alert
-
-    func scheduleFertileWindowAlert(startDate: Date) {
-        // Alert 1 day before
-        let alertDate = startDate.addingDays(-1)
-        guard alertDate > Date.now else { return }
+    /// Schedules a one-off reminder at 9 AM on `day`, if that's still in the future.
+    private func schedule(id: String, title: String, body: String, category: String, on day: Date) {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: day)
+        components.hour = 9
+        guard let fireDate = Calendar.current.date(from: components), fireDate > .now else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "Fertile Window Starting"
-        content.body = "Your fertile window starts tomorrow. This is the best time for conception."
+        content.title = title
+        content.body = body
         content.sound = .default
-        content.categoryIdentifier = "fertile_window"
+        content.categoryIdentifier = category
 
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: alertDate)
-        var triggerComponents = components
-        triggerComponents.hour = 9
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-        let request = UNNotificationRequest(identifier: "bloom.fertile.alert", content: content, trigger: trigger)
-
-        center.add(request)
-    }
-
-    func cancelFertileWindowAlert() {
-        center.removePendingNotificationRequests(withIdentifiers: ["bloom.fertile.alert"])
-    }
-
-    // MARK: - Ovulation Day Alert
-
-    func scheduleOvulationDayAlert(ovulationDate: Date) {
-        guard ovulationDate > Date.now else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Peak Fertility Today"
-        content.body = "Today is likely your ovulation day — peak fertility for conception."
-        content.sound = .default
-        content.categoryIdentifier = "ovulation_day"
-
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: ovulationDate)
-        var triggerComponents = components
-        triggerComponents.hour = 9
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
-        let request = UNNotificationRequest(identifier: "bloom.ovulation.day", content: content, trigger: trigger)
-
-        center.add(request)
-    }
-
-    func cancelOvulationDayAlert() {
-        center.removePendingNotificationRequests(withIdentifiers: ["bloom.ovulation.day"])
-    }
-
-    // MARK: - Reschedule All
-
-    func rescheduleAll(
-        bbtReminderEnabled: Bool,
-        bbtHour: Int,
-        bbtMinute: Int,
-        periodReminderEnabled: Bool,
-        predictedPeriodDate: Date?,
-        fertileWindowAlertEnabled: Bool,
-        fertileWindowStart: Date?,
-        predictedOvulationDate: Date?
-    ) {
-        // Cancel all first
-        cancelBBTReminder()
-        cancelPeriodReminder()
-        cancelFertileWindowAlert()
-        cancelOvulationDayAlert()
-
-        // Reschedule based on preferences
-        if bbtReminderEnabled {
-            scheduleBBTReminder(hour: bbtHour, minute: bbtMinute)
-        }
-
-        if periodReminderEnabled, let periodDate = predictedPeriodDate {
-            schedulePeriodReminder(expectedDate: periodDate)
-        }
-
-        if fertileWindowAlertEnabled {
-            if let windowStart = fertileWindowStart {
-                scheduleFertileWindowAlert(startDate: windowStart)
-            }
-            if let ovDate = predictedOvulationDate {
-                scheduleOvulationDayAlert(ovulationDate: ovDate)
-            }
-        }
-    }
-
-    // MARK: - Cancel All
-
-    func cancelAllNotifications() {
-        center.removeAllPendingNotificationRequests()
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
 }

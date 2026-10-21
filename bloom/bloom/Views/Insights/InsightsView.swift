@@ -4,6 +4,7 @@ import SwiftData
 struct InsightsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @AppStorage(Preferences.Key.useCelsius) private var useCelsius = false
     let predictionService: PredictionService
     @State private var viewModel: InsightsViewModel?
 
@@ -19,8 +20,7 @@ struct InsightsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Insights")
-                        .font(BloomTheme.sectionTitle)
+                    BloomTheme.brandText("Insights")
                         .foregroundStyle(BloomTheme.brand)
                 }
             }
@@ -56,6 +56,7 @@ struct InsightsView: View {
                     ovulationDate: viewModel.detectedOvulationDate,
                     fertileWindowStart: viewModel.fertileWindowStart,
                     fertileWindowEnd: viewModel.fertileWindowEnd,
+                    unit: TemperatureUnit(useCelsius: useCelsius),
                     cycleLabel: viewModel.selectedCycleLabel,
                     canSelectPrevious: viewModel.canSelectPrevious,
                     canSelectNext: viewModel.canSelectNext,

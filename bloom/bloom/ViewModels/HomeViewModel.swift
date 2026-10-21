@@ -1,22 +1,21 @@
 import Foundation
-import SwiftData
 import Observation
 
 @Observable
 final class HomeViewModel {
-    private let modelContext: ModelContext
     let predictionService: PredictionService
 
-    var todayLog: DailyLog?
-
-    init(modelContext: ModelContext, predictionService: PredictionService) {
-        self.modelContext = modelContext
+    init(predictionService: PredictionService) {
         self.predictionService = predictionService
     }
 
     func refresh() {
         predictionService.updatePredictions()
-        loadTodayLog()
+    }
+
+    /// Today's log, fetched fresh each time so edits from other tabs show up.
+    var todayLog: DailyLog? {
+        predictionService.cycleManager.log(for: .now)
     }
 
     // MARK: - Display Properties
@@ -43,6 +42,10 @@ final class HomeViewModel {
             return "Log your period to get started"
         }
 
+        if let late = predictionService.daysPeriodLate {
+            return "Your period is \(late) day\(late == 1 ? "" : "s") later than expected. If you've been trying to conceive, this could be a good time to take a pregnancy test."
+        }
+
         switch level {
         case .peak:
             return "Peak fertility \u{2014} intercourse today or tomorrow has the highest chance of conception (~20-31% per cycle)"
@@ -60,6 +63,9 @@ final class HomeViewModel {
     }
 
     var nextPeriodCountdown: String? {
+        if let late = predictionService.daysPeriodLate {
+            return "\(late) day\(late == 1 ? "" : "s") late"
+        }
         guard let days = predictionService.daysUntilNextPeriod else { return nil }
         if days == 0 { return "Today" }
         return "\(days) day\(days == 1 ? "" : "s")"
@@ -84,18 +90,19 @@ final class HomeViewModel {
 
     var todayHasData: Bool {
         guard let log = todayLog else { return false }
-        return log.bbtTemperature != nil
+        return log.isOnPeriod
+            || log.bbtTemperature != nil
             || log.cervicalMucus != nil
             || log.opkResult != nil
             || !log.symptoms.isEmpty
             || log.hadIntercourse
     }
 
-    var todayLoggedItems: [String] {
+    func todayLoggedItems(unit: TemperatureUnit) -> [String] {
         guard let log = todayLog else { return [] }
         var items: [String] = []
         if log.isOnPeriod { items.append("Period") }
-        if let temp = log.bbtTemperature { items.append(String(format: "%.1f\u{00B0}F", temp)) }
+        if let temp = log.bbtTemperature { items.append(unit.format(temp) + unit.symbol) }
         if let mucus = log.cervicalMucus { items.append(mucus.label) }
         if let opk = log.opkResult { items.append("OPK: \(opk.label)") }
         if !log.symptoms.isEmpty { items.append("\(log.symptoms.count) symptom\(log.symptoms.count == 1 ? "" : "s")") }
@@ -109,7 +116,7 @@ final class HomeViewModel {
     // MARK: - Conception Score
 
     var conceptionScore: Int? {
-        predictionService.currentConceptionScore
+        predictionService.currentConceptionScore?.total
     }
 
     var isInFertileWindow: Bool {
@@ -118,93 +125,56 @@ final class HomeViewModel {
     }
 
     /// Breakdown of the conception score into its three components.
-    var conceptionScoreBreakdown: (timing: Int, dataQuality: Int, favorableSigns: Int) {
-        guard let cycle = predictionService.currentCycle,
-              let ovDate = predictionService.predictedOvulationDate else {
-            return (0, 0, 0)
-        }
-
-        let logs = cycle.dailyLogs ?? []
-
-        // Timing (0-50) — uses shared scoring aligned with published probabilities
-        var bestTiming = 0
-        for log in logs where log.hadIntercourse {
-            let daysBeforeOv = log.date.startOfDay.daysBetween(ovDate.startOfDay)
-            bestTiming = max(bestTiming, CycleCalculationService.timingScore(daysBeforeOvulation: daysBeforeOv))
-        }
-
-        // Data quality (0-30)
-        var dq = 0
-        if logs.contains(where: { $0.bbtTemperature != nil }) { dq += 10 }
-        if logs.contains(where: { $0.cervicalMucus != nil }) { dq += 10 }
-        if logs.contains(where: { $0.opkResult != nil }) { dq += 10 }
-
-        // Favorable signs (0-20)
-        var fs = 0
-        if logs.contains(where: { $0.cervicalMucus == .eggWhite }) { fs += 10 }
-        if logs.contains(where: { $0.opkResult == .positive }) { fs += 10 }
-
-        return (bestTiming, dq, fs)
+    var conceptionScoreBreakdown: ConceptionScoreBreakdown {
+        predictionService.currentConceptionScore ?? ConceptionScoreBreakdown()
     }
 
     /// Description of the best-timed intercourse day and its estimated probability.
     var bestTimingDescription: String? {
-        guard let cycle = predictionService.currentCycle,
-              let ovDate = predictionService.predictedOvulationDate else { return nil }
-
-        var bestScore = 0
-        var bestDays = 0
-        for log in (cycle.dailyLogs ?? []) where log.hadIntercourse {
-            let d = log.date.startOfDay.daysBetween(ovDate.startOfDay)
-            let s = CycleCalculationService.timingScore(daysBeforeOvulation: d)
-            if s > bestScore { bestScore = s; bestDays = d }
-        }
-
-        guard bestScore > 0,
-              let prob = CycleCalculationService.estimatedConceptionProbability(forTimingScore: bestScore) else {
+        let breakdown = conceptionScoreBreakdown
+        guard let days = breakdown.bestTimingDaysBeforeOvulation,
+              let prob = CycleCalculationService.estimatedConceptionProbability(forTimingScore: breakdown.timing) else {
             return nil
         }
-
-        return "Best timing: \(CycleCalculationService.timingDayLabel(daysBeforeOvulation: bestDays)) (\(prob) per-cycle probability)"
+        return "Best timing: \(CycleCalculationService.timingDayLabel(daysBeforeOvulation: days)) (\(prob) per-cycle probability)"
     }
 
     // MARK: - Cycle Ring Data
 
-    /// Returns phase segments as (phase, startFraction, endFraction) for the cycle ring.
-    var cycleRingSegments: [(phase: CyclePhase, start: Double, end: Double)] {
-        guard hasCycleData else { return [] }
+    /// Days shown around the ring: the expected cycle length, stretched if the cycle runs long.
+    private var ringLength: Int {
+        max(predictionService.effectiveCycleLength, predictionService.currentCycleDay ?? 0)
+    }
 
-        let cycleLength = Double(effectiveCycleLength)
-        let periodLength = Double(predictionService.currentCycle?.periodLength ?? BloomConstants.defaultPeriodLength)
-        let ovulationDay = Double(effectiveCycleLength - predictionService.effectiveLutealPhaseLength)
+    /// Returns phase segments as (phase, startFraction, endFraction) for the cycle ring.
+    /// Cycle day `d` occupies the arc from (d-1)/length to d/length, matching how phases are
+    /// assigned to days everywhere else.
+    var cycleRingSegments: [(phase: CyclePhase, start: Double, end: Double)] {
+        guard let cycle = predictionService.currentCycle else { return [] }
+
+        let length = Double(ringLength)
+        let periodEnd = Double(predictionService.currentPeriodLength)
+        let ovulationDay = Double(predictionService.predictedOvulationDate.map {
+            CycleCalculationService.ovulationDay(cycleStart: cycle.startDate, ovulationDate: $0)
+        } ?? (predictionService.effectiveCycleLength - predictionService.effectiveLutealPhaseLength))
+
+        // Ovulation phase covers days ovulationDay-1 ... ovulationDay+1.
+        let ovulationStart = max(periodEnd, ovulationDay - 2)
+        let ovulationEnd = max(periodEnd, ovulationDay + 1)
+
+        func fraction(_ days: Double) -> Double { min(max(days / length, 0), 1) }
 
         return [
-            (.menstrual, 0, periodLength / cycleLength),
-            (.follicular, periodLength / cycleLength, (ovulationDay - 1) / cycleLength),
-            (.ovulation, (ovulationDay - 1) / cycleLength, (ovulationDay + 2) / cycleLength),
-            (.luteal, (ovulationDay + 2) / cycleLength, 1.0),
-        ]
+            (.menstrual, 0, fraction(periodEnd)),
+            (.follicular, fraction(periodEnd), fraction(ovulationStart)),
+            (.ovulation, fraction(ovulationStart), fraction(ovulationEnd)),
+            (.luteal, fraction(ovulationEnd), 1.0),
+        ].filter { $0.end > $0.start }
     }
 
+    /// Position of today's marker: the middle of today's arc.
     var cycleProgress: Double {
         guard let day = predictionService.currentCycleDay else { return 0 }
-        return Double(day) / Double(effectiveCycleLength)
-    }
-
-    var effectiveCycleLength: Int {
-        if let avg = predictionService.avgCycleLength { return Int(round(avg)) }
-        return predictionService.currentCycle?.cycleLength ?? BloomConstants.defaultCycleLength
-    }
-
-    // MARK: - Private
-
-    private func loadTodayLog() {
-        let today = Date.now.startOfDay
-        let tomorrow = today.addingDays(1)
-        var descriptor = FetchDescriptor<DailyLog>(
-            predicate: #Predicate { $0.date >= today && $0.date < tomorrow }
-        )
-        descriptor.fetchLimit = 1
-        todayLog = try? modelContext.fetch(descriptor).first
+        return min((Double(day) - 0.5) / Double(ringLength), 1)
     }
 }

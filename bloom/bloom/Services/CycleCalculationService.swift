@@ -1,5 +1,21 @@
 import Foundation
 
+/// A logged period day, reduced to what cycle derivation needs.
+nonisolated struct PeriodDay: Equatable {
+    let date: Date
+    let isSpotting: Bool
+}
+
+/// A cycle derived from logged period days.
+nonisolated struct DerivedCycle: Equatable {
+    let startDate: Date
+    var periodEndDate: Date
+    /// Days until the next cycle starts; nil for the most recent (ongoing) cycle.
+    var cycleLength: Int?
+
+    var periodLength: Int { startDate.daysBetween(periodEndDate) + 1 }
+}
+
 /// Pure computation engine for cycle predictions. No UI coupling, no SwiftData dependency.
 /// All methods are static and deterministic for easy testing.
 ///
@@ -9,6 +25,62 @@ import Foundation
 /// - Luteal phase length: Lenton et al., BJOG 1984; 91:681-684 (mean ~12.4 days, range 10-16)
 /// - BBT "3 over 6" rule: Fertility awareness-based methods, WHO 2004
 nonisolated struct CycleCalculationService {
+
+    // MARK: - Cycle Derivation
+
+    /// Derives cycles from logged period days. Period days are the single source of truth:
+    /// a cycle starts on the first non-spotting day of a bleeding episode, and runs until
+    /// the next cycle starts.
+    ///
+    /// - Days at most `periodGapToleranceDays` apart belong to the same episode, so a missed
+    ///   log or two doesn't split a period.
+    /// - Spotting-only episodes never start a cycle.
+    /// - An episode that begins less than `minimumCycleLength` days after the previous cycle
+    ///   started is not a new cycle. If it's still within a plausible period length it extends
+    ///   that period; otherwise (e.g. mid-cycle spotting logged as a period) it is ignored.
+    static func deriveCycles(from periodDays: [PeriodDay]) -> [DerivedCycle] {
+        // Normalize to one entry per day; a day only counts as spotting if every entry says so.
+        var spottingByDay: [Date: Bool] = [:]
+        for periodDay in periodDays {
+            let date = periodDay.date.startOfDay
+            spottingByDay[date] = (spottingByDay[date] ?? true) && periodDay.isSpotting
+        }
+        let days = spottingByDay
+            .map { PeriodDay(date: $0.key, isSpotting: $0.value) }
+            .sorted { $0.date < $1.date }
+
+        var episodes: [[PeriodDay]] = []
+        for periodDay in days {
+            if let last = episodes.last?.last,
+               last.date.daysBetween(periodDay.date) <= BloomConstants.periodGapToleranceDays {
+                episodes[episodes.count - 1].append(periodDay)
+            } else {
+                episodes.append([periodDay])
+            }
+        }
+
+        var cycles: [DerivedCycle] = []
+        for episode in episodes {
+            guard let firstFlowDay = episode.first(where: { !$0.isSpotting }),
+                  let episodeStart = episode.first,
+                  let episodeEnd = episode.last else { continue }
+
+            if let previous = cycles.last,
+               previous.startDate.daysBetween(firstFlowDay.date) < BloomConstants.minimumCycleLength {
+                if previous.startDate.daysBetween(episodeStart.date) < BloomConstants.maxPlausiblePeriodLength {
+                    cycles[cycles.count - 1].periodEndDate = max(previous.periodEndDate, episodeEnd.date)
+                }
+                continue
+            }
+
+            cycles.append(DerivedCycle(startDate: firstFlowDay.date, periodEndDate: episodeEnd.date, cycleLength: nil))
+        }
+
+        for index in cycles.indices.dropLast() {
+            cycles[index].cycleLength = cycles[index].startDate.daysBetween(cycles[index + 1].startDate)
+        }
+        return cycles
+    }
 
     // MARK: - Cycle Day & Phase
 
@@ -25,9 +97,16 @@ nonisolated struct CycleCalculationService {
         lutealPhaseLength: Int = BloomConstants.defaultLutealPhaseLength,
         on date: Date = .now
     ) -> CyclePhase {
-        let day = currentCycleDay(cycleStart: cycleStart, on: date)
-        let ovulationDay = cycleLength - lutealPhaseLength
+        phase(
+            cycleDay: currentCycleDay(cycleStart: cycleStart, on: date),
+            periodLength: periodLength,
+            ovulationDay: cycleLength - lutealPhaseLength
+        )
+    }
 
+    /// Phase for a cycle day given the (estimated or confirmed) ovulation day of that cycle.
+    /// The ovulation phase spans the day before through the day after ovulation.
+    static func phase(cycleDay day: Int, periodLength: Int, ovulationDay: Int) -> CyclePhase {
         if day <= periodLength {
             return .menstrual
         } else if day < ovulationDay - 1 {
@@ -37,6 +116,11 @@ nonisolated struct CycleCalculationService {
         } else {
             return .luteal
         }
+    }
+
+    /// 1-based cycle day on which ovulation falls.
+    static func ovulationDay(cycleStart: Date, ovulationDate: Date) -> Int {
+        cycleStart.startOfDay.daysBetween(ovulationDate) + 1
     }
 
     // MARK: - Fertility
@@ -158,7 +242,7 @@ nonisolated struct CycleCalculationService {
         let completedCycles = cycles
             .filter { $0.cycleLength != nil }
             .sorted { $0.startDate > $1.startDate } // Most recent first
-        let lengths = completedCycles.compactMap { $0.cycleLength }
+        let lengths = typicalCycleLengths(completedCycles.compactMap { $0.cycleLength })
         guard !lengths.isEmpty else { return nil }
 
         // Simple mean when insufficient data for meaningful weighting
@@ -181,11 +265,24 @@ nonisolated struct CycleCalculationService {
 
     /// Calculates the standard deviation of cycle lengths.
     static func cycleLengthStdDev(from cycles: [Cycle]) -> Double? {
-        let completedLengths = cycles.compactMap { $0.cycleLength }
+        let completedLengths = typicalCycleLengths(cycles.compactMap { $0.cycleLength })
         guard completedLengths.count >= 2 else { return nil }
         let mean = Double(completedLengths.reduce(0, +)) / Double(completedLengths.count)
         let variance = completedLengths.map { pow(Double($0) - mean, 2) }.reduce(0, +) / Double(completedLengths.count)
         return sqrt(variance)
+    }
+
+    /// Drops cycle lengths far from the median (e.g. a 56-day "cycle" from a forgotten period)
+    /// so one bad entry doesn't skew predictions. Order is preserved. With fewer than three
+    /// cycles there isn't enough data to call anything an outlier.
+    static func typicalCycleLengths(_ lengths: [Int]) -> [Int] {
+        guard lengths.count >= 3 else { return lengths }
+        let sorted = lengths.sorted()
+        let middle = sorted.count / 2
+        let median = sorted.count.isMultiple(of: 2)
+            ? Double(sorted[middle - 1] + sorted[middle]) / 2
+            : Double(sorted[middle])
+        return lengths.filter { Double($0) >= median * 0.6 && Double($0) <= median * 1.6 }
     }
 
     /// Describes cycle regularity based on standard deviation.
@@ -259,46 +356,47 @@ nonisolated struct CycleCalculationService {
     // MARK: - Refined Ovulation Estimate
 
     /// Combines multiple data sources to produce the best ovulation estimate.
-    /// Priority: OPK positive > OPK near-positive > BBT shift > EWCM peak > calendar.
+    /// Priority: BBT shift (confirmed) > OPK positive > OPK near-positive > EWCM > calendar.
+    ///
+    /// A BBT shift is retrospective but the most reliable signal, so it wins whenever it agrees
+    /// with the OPK-based estimate (within a few days). If they disagree badly the BBT "shift"
+    /// is more likely noise, so the OPK estimate is used instead.
     static func refineOvulationEstimate(
         cycleStart: Date,
         cycleLength: Int,
         lutealPhaseLength: Int = BloomConstants.defaultLutealPhaseLength,
         logs: [DailyLog]
     ) -> (date: Date, confirmed: Bool) {
-        // 1. OPK positive — ovulation expected in ~24-48 hours (use +1 day as estimate)
-        let opkPositiveLogs = logs
+        // OPK positive — ovulation expected in ~24-48 hours (use +1 day as estimate)
+        let opkEstimate = logs
             .filter { $0.opkResult == .positive }
-            .sorted { $0.date < $1.date }
+            .map(\.date)
+            .min()
+            .map { $0.addingDays(1) }
 
-        if let firstPositive = opkPositiveLogs.first {
-            return (firstPositive.date.addingDays(1), false)
-        }
-
-        // 2. OPK near-positive — LH is rising, ovulation likely in ~2-3 days
-        let opkNearPositiveLogs = logs
-            .filter { $0.opkResult == .nearPositive }
-            .sorted { $0.date < $1.date }
-
-        if let firstNearPositive = opkNearPositiveLogs.first {
-            return (firstNearPositive.date.addingDays(2), false)
-        }
-
-        // 3. BBT shift — retrospective confirmation (most accurate)
+        // BBT shift — retrospective confirmation (most accurate)
         if let bbtOvulation = detectOvulationFromBBT(logs: logs) {
+            if let opkEstimate, abs(bbtOvulation.daysBetween(opkEstimate)) > BloomConstants.maxOPKBBTDisagreementDays {
+                return (opkEstimate, false)
+            }
             return (bbtOvulation, true)
         }
 
-        // 4. Egg white cervical mucus — typically appears 1-2 days before ovulation
-        let ewcmLogs = logs
-            .filter { $0.cervicalMucus == .eggWhite }
-            .sorted { $0.date < $1.date }
-
-        if let firstEWCM = ewcmLogs.first {
-            return (firstEWCM.date.addingDays(1), false)
+        if let opkEstimate {
+            return (opkEstimate, false)
         }
 
-        // 5. Fall back to calendar-based estimate
+        // OPK near-positive — LH is rising, ovulation likely in ~2-3 days
+        if let firstNearPositive = logs.filter({ $0.opkResult == .nearPositive }).map(\.date).min() {
+            return (firstNearPositive.addingDays(2), false)
+        }
+
+        // Egg white cervical mucus — typically appears 1-2 days before ovulation
+        if let firstEWCM = logs.filter({ $0.cervicalMucus == .eggWhite }).map(\.date).min() {
+            return (firstEWCM.addingDays(1), false)
+        }
+
+        // Fall back to calendar-based estimate
         return (estimatedOvulationDate(cycleStart: cycleStart, cycleLength: cycleLength, lutealPhaseLength: lutealPhaseLength), false)
     }
 
@@ -395,34 +493,36 @@ nonisolated struct CycleCalculationService {
     /// - Timing (0-50): Based on proximity of intercourse to ovulation, scaled to published probabilities
     /// - Data quality (0-30): Whether BBT, cervical mucus, and OPK data were tracked
     /// - Favorable signs (0-20): Whether peak fertility indicators were observed
-    static func conceptionScore(
-        ovulationDate: Date,
-        logs: [DailyLog],
-        isOvulationConfirmed: Bool
-    ) -> Int {
-        var score = 0
+    static func conceptionScore(ovulationDate: Date, logs: [DailyLog]) -> ConceptionScoreBreakdown {
+        var breakdown = ConceptionScoreBreakdown()
 
-        // Intercourse timing score (0-50)
-        let intercourseLogs = logs.filter { $0.hadIntercourse }
-        var bestTimingScore = 0
-
-        for log in intercourseLogs {
+        for log in logs where log.hadIntercourse {
             // Positive = ovulation is in the future (log is before ovulation)
             let daysBeforeOvulation = log.date.startOfDay.daysBetween(ovulationDate.startOfDay)
             let dayScore = timingScore(daysBeforeOvulation: daysBeforeOvulation)
-            bestTimingScore = max(bestTimingScore, dayScore)
+            if dayScore > breakdown.timing {
+                breakdown.timing = dayScore
+                breakdown.bestTimingDaysBeforeOvulation = daysBeforeOvulation
+            }
         }
-        score += bestTimingScore
 
-        // Data quality score (0-30)
-        if logs.contains(where: { $0.bbtTemperature != nil }) { score += 10 }
-        if logs.contains(where: { $0.cervicalMucus != nil }) { score += 10 }
-        if logs.contains(where: { $0.opkResult != nil }) { score += 10 }
+        if logs.contains(where: { $0.bbtTemperature != nil }) { breakdown.dataQuality += 10 }
+        if logs.contains(where: { $0.cervicalMucus != nil }) { breakdown.dataQuality += 10 }
+        if logs.contains(where: { $0.opkResult != nil }) { breakdown.dataQuality += 10 }
 
-        // Favorable signs score (0-20)
-        if logs.contains(where: { $0.cervicalMucus == .eggWhite }) { score += 10 }
-        if logs.contains(where: { $0.opkResult == .positive }) { score += 10 }
+        if logs.contains(where: { $0.cervicalMucus == .eggWhite }) { breakdown.favorableSigns += 10 }
+        if logs.contains(where: { $0.opkResult == .positive }) { breakdown.favorableSigns += 10 }
 
-        return min(score, 100)
+        return breakdown
     }
+}
+
+nonisolated struct ConceptionScoreBreakdown: Equatable {
+    var timing = 0
+    var dataQuality = 0
+    var favorableSigns = 0
+    /// Days before ovulation of the best-timed intercourse, if any scored.
+    var bestTimingDaysBeforeOvulation: Int?
+
+    var total: Int { min(timing + dataQuality + favorableSigns, 100) }
 }

@@ -2,10 +2,11 @@ import SwiftUI
 import SwiftData
 
 struct CalendarView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(AppNavigation.self) private var navigation
     let predictionService: PredictionService
     @State private var viewModel: CalendarViewModel?
+    @State private var periodToDelete: Date?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
@@ -21,8 +22,7 @@ struct CalendarView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Calendar")
-                        .font(BloomTheme.sectionTitle)
+                    BloomTheme.brandText("Calendar")
                         .foregroundStyle(BloomTheme.brand)
                 }
             }
@@ -46,10 +46,20 @@ struct CalendarView: View {
             }
             .onAppear {
                 if viewModel == nil {
-                    viewModel = CalendarViewModel(modelContext: modelContext, predictionService: predictionService)
+                    viewModel = CalendarViewModel(predictionService: predictionService)
                 }
+                showRequestedPeriodSheet()
+            }
+            .onChange(of: navigation.requestedPeriodSheet) {
+                showRequestedPeriodSheet()
             }
         }
+    }
+
+    private func showRequestedPeriodSheet() {
+        guard navigation.requestedPeriodSheet, let viewModel else { return }
+        viewModel.showingPeriodSheet = true
+        navigation.requestedPeriodSheet = false
     }
 
     private var isWide: Bool { sizeClass == .regular }
@@ -72,7 +82,7 @@ struct CalendarView: View {
 
                 // Cycle timeline
                 if viewModel.predictionService.completedCycleCount > 0 {
-                    CycleTimelineView(modelContext: modelContext, predictionService: viewModel.predictionService)
+                    CycleTimelineView(predictionService: viewModel.predictionService)
                         .padding(.top, 8)
                 }
             }
@@ -93,8 +103,15 @@ struct CalendarView: View {
 
             Spacer()
 
-            Text(viewModel.monthTitle)
-                .font(.title2.bold())
+            VStack(spacing: 2) {
+                Text(viewModel.monthTitle)
+                    .font(.title2.bold())
+
+                if !viewModel.isShowingCurrentMonth {
+                    Button("Today", action: viewModel.goToToday)
+                        .font(.caption)
+                }
+            }
 
             Spacer()
 
@@ -118,17 +135,16 @@ struct CalendarView: View {
     }
 
     private func dayGrid(viewModel: CalendarViewModel) -> some View {
-        LazyVGrid(columns: columns, spacing: 4) {
+        let dayInfo = viewModel.monthDayInfo
+
+        return LazyVGrid(columns: columns, spacing: 4) {
             ForEach(Array(viewModel.daysInMonthGrid.enumerated()), id: \.offset) { _, date in
                 if let date {
                     CalendarDayCell(
                         date: date,
                         isToday: date.isToday,
                         isSelected: viewModel.selectedDate?.startOfDay == date.startOfDay,
-                        phase: viewModel.phaseForDate(date),
-                        fertility: viewModel.fertilityForDate(date),
-                        isOnPeriod: viewModel.isOnPeriod(date),
-                        isPredictedNextPeriod: viewModel.isPredictedNextPeriodStart(date),
+                        info: dayInfo[date.startOfDay] ?? DayInfo(),
                         onTap: { viewModel.selectedDate = date },
                         minCellHeight: cellHeight
                     )
@@ -157,7 +173,8 @@ struct CalendarView: View {
                         predictionCard(
                             title: "Next Period",
                             value: nextPeriod.shortFormatted,
-                            subtitle: ps.daysUntilNextPeriod.map { "\($0) days" },
+                            subtitle: ps.daysPeriodLate.map { "\($0) day\($0 == 1 ? "" : "s") late" }
+                                ?? ps.daysUntilNextPeriod.map { "in \($0) day\($0 == 1 ? "" : "s")" },
                             color: CyclePhase.menstrual.color
                         )
                     }
@@ -179,33 +196,92 @@ struct CalendarView: View {
     }
 
     private func selectedDateCard(date: Date, viewModel: CalendarViewModel) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                    .font(.headline)
+        let info = viewModel.dayInfo(for: date)
+        let isPastOrToday = date.startOfDay <= Date.now.startOfDay
 
-                if let cycleDay = viewModel.cycleDayFor(date) {
-                    Text("Cycle Day \(cycleDay)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                        .font(.headline)
+
+                    if let cycleDay = info.cycleDay {
+                        Text(info.isProjected ? "Predicted cycle day \(cycleDay)" : "Cycle Day \(cycleDay)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if let phase = info.phase {
+                    Text(phase.label)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(phase.color)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(phase.color.opacity(0.15))
+                        .clipShape(Capsule())
                 }
             }
 
-            Spacer()
+            if let fertility = info.fertility, info.isInFertileWindow || fertility != .low {
+                HStack(spacing: 6) {
+                    Image(systemName: info.isOvulationDay ? "sparkles" : "sparkle")
+                    Text(info.isOvulationDay ? "\(fertility.label) \u{00B7} likely ovulation day" : fertility.label)
+                }
+                .font(.caption.bold())
+                .foregroundStyle(fertility.color)
+            }
 
-            if let phase = viewModel.phaseForDate(date) {
-                Text(phase.label)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(phase.color)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(phase.color.opacity(0.15))
-                    .clipShape(Capsule())
+            if viewModel.canTogglePeriod(on: date) {
+                Divider()
+
+                Toggle(isOn: Binding(
+                    get: { info.isPeriod },
+                    set: { _ in viewModel.togglePeriod(on: date) }
+                )) {
+                    Label("Period day", systemImage: "drop.fill")
+                        .foregroundStyle(CyclePhase.menstrual.color)
+                }
+                .tint(CyclePhase.menstrual.color)
+
+                HStack {
+                    if info.isPeriod {
+                        Button("Delete This Period", role: .destructive) {
+                            periodToDelete = date
+                        }
+                    }
+
+                    Spacer()
+
+                    if isPastOrToday {
+                        Button("Open Daily Log") {
+                            navigation.openLog(for: date)
+                        }
+                    }
+                }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
             }
         }
         .padding()
         .background(BloomTheme.cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .confirmationDialog(
+            "Delete this period?",
+            isPresented: Binding(get: { periodToDelete != nil }, set: { if !$0 { periodToDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Period", role: .destructive) {
+                if let periodToDelete {
+                    viewModel.deletePeriod(containing: periodToDelete)
+                }
+                periodToDelete = nil
+            }
+        } message: {
+            Text("All days of this period will be unmarked. Your other logs for these days are kept.")
+        }
     }
 
     private func predictionCard(title: String, value: String, subtitle: String?, color: Color) -> some View {
@@ -247,17 +323,40 @@ struct CalendarView: View {
                 }
             }
 
-            // Estimated next period marker
-            HStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(
-                        CyclePhase.menstrual.color,
-                        style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])
-                    )
-                    .frame(width: 16, height: 16)
-                Text("Estimated next period")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 14) {
+                // Logged period
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(CyclePhase.menstrual.color.opacity(0.25))
+                        .frame(width: 16, height: 16)
+                    Text("Period")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                // Estimated next period marker
+                HStack(spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .strokeBorder(
+                            CyclePhase.menstrual.color,
+                            style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])
+                        )
+                        .frame(width: 16, height: 16)
+                    Text("Predicted period")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                // Fertile days
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(FertilityLevel.peak.color)
+                        .frame(width: 6, height: 6)
+                        .frame(width: 16, height: 16)
+                    Text("Fertile day")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // Phase descriptions

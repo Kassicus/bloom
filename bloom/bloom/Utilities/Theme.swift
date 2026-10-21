@@ -141,6 +141,14 @@ enum BloomTheme {
     static let sectionTitle = brandFont(size: 24)
     static let brandAccent = brandFont(size: 18)
 
+    /// Text in a brand font. Always use this rather than `Text(...).font(brandFont)`:
+    /// Yellowtail's glyphs lean right and draw a few points past their advance width, and
+    /// SwiftUI clips text to its advance width (padding doesn't help). The trailing space
+    /// gives that overhang room to draw.
+    static func brandText(_ string: String, font: Font = sectionTitle) -> Text {
+        Text(string + " ").font(font)
+    }
+
     // MARK: - Color Palette
 
     static var brand: Color { colors.brand }

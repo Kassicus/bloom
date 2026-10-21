@@ -1,122 +1,112 @@
 import Foundation
 import SwiftData
 import Observation
+import UserNotifications
 
 @Observable
 final class SettingsViewModel {
     private let modelContext: ModelContext
     private let predictionService: PredictionService
 
-    // Notification preferences (persisted via UserDefaults through AppStorage in the view)
-    var bbtReminderEnabled: Bool = false {
-        didSet { updateNotifications() }
+    // Notification preferences. Initial values come straight from storage; observers only run
+    // for user changes afterwards (property observers don't fire during init), so loading can
+    // never overwrite stored settings.
+    var bbtReminderEnabled = Preferences.bbtReminderEnabled {
+        didSet {
+            Preferences.bbtReminderEnabled = bbtReminderEnabled
+            remindersChanged(enabling: bbtReminderEnabled)
+        }
     }
-    var bbtReminderHour: Int = 6 {
-        didSet { updateNotifications() }
+    var bbtReminderHour = Preferences.bbtReminderHour {
+        didSet {
+            Preferences.bbtReminderHour = bbtReminderHour
+            remindersChanged(enabling: false)
+        }
     }
-    var bbtReminderMinute: Int = 30 {
-        didSet { updateNotifications() }
+    var bbtReminderMinute = Preferences.bbtReminderMinute {
+        didSet {
+            Preferences.bbtReminderMinute = bbtReminderMinute
+            remindersChanged(enabling: false)
+        }
     }
-    var periodReminderEnabled: Bool = false {
-        didSet { updateNotifications() }
+    var periodReminderEnabled = Preferences.periodReminderEnabled {
+        didSet {
+            Preferences.periodReminderEnabled = periodReminderEnabled
+            remindersChanged(enabling: periodReminderEnabled)
+        }
     }
-    var fertileWindowAlertEnabled: Bool = false {
-        didSet { updateNotifications() }
+    var fertileWindowAlertEnabled = Preferences.fertileWindowAlertEnabled {
+        didSet {
+            Preferences.fertileWindowAlertEnabled = fertileWindowAlertEnabled
+            remindersChanged(enabling: fertileWindowAlertEnabled)
+        }
     }
 
     // HealthKit
-    var healthKitEnabled: Bool = false
-    var healthKitSyncStatus: String = "Not Connected"
+    var healthKitEnabled = Preferences.healthKitEnabled {
+        didSet { Preferences.healthKitEnabled = healthKitEnabled }
+    }
+    var healthKitSyncStatus: String
     var isHealthKitAvailable: Bool { HealthKitService.shared.isAvailable }
 
     // Display
-    var useCelsius: Bool = false
     var selectedTheme: AppTheme = ThemeManager.shared.activeTheme {
         didSet {
             ThemeManager.shared.activeTheme = selectedTheme
-            savePreferences()
         }
     }
 
     // Notification permission
-    var notificationPermissionGranted: Bool = false
+    var notificationStatus: UNAuthorizationStatus = .notDetermined
+    var notificationPermissionGranted: Bool {
+        notificationStatus == .authorized || notificationStatus == .provisional
+    }
 
     init(modelContext: ModelContext, predictionService: PredictionService) {
         self.modelContext = modelContext
         self.predictionService = predictionService
-    }
-
-    func loadPreferences() {
-        let defaults = UserDefaults.standard
-        bbtReminderEnabled = defaults.bool(forKey: "bloom.bbtReminderEnabled")
-        bbtReminderHour = defaults.object(forKey: "bloom.bbtReminderHour") as? Int ?? 6
-        bbtReminderMinute = defaults.object(forKey: "bloom.bbtReminderMinute") as? Int ?? 30
-        periodReminderEnabled = defaults.bool(forKey: "bloom.periodReminderEnabled")
-        fertileWindowAlertEnabled = defaults.bool(forKey: "bloom.fertileWindowAlertEnabled")
-        healthKitEnabled = defaults.bool(forKey: "bloom.healthKitEnabled")
-        useCelsius = defaults.bool(forKey: "bloom.useCelsius")
-        selectedTheme = ThemeManager.shared.activeTheme
-
-        Task {
-            notificationPermissionGranted = await NotificationService.shared.isAuthorized
-        }
-    }
-
-    func savePreferences() {
-        let defaults = UserDefaults.standard
-        defaults.set(bbtReminderEnabled, forKey: "bloom.bbtReminderEnabled")
-        defaults.set(bbtReminderHour, forKey: "bloom.bbtReminderHour")
-        defaults.set(bbtReminderMinute, forKey: "bloom.bbtReminderMinute")
-        defaults.set(periodReminderEnabled, forKey: "bloom.periodReminderEnabled")
-        defaults.set(fertileWindowAlertEnabled, forKey: "bloom.fertileWindowAlertEnabled")
-        defaults.set(healthKitEnabled, forKey: "bloom.healthKitEnabled")
-        defaults.set(useCelsius, forKey: "bloom.useCelsius")
+        self.healthKitSyncStatus = Preferences.healthKitEnabled ? "Connected" : "Not Connected"
     }
 
     // MARK: - Notifications
 
-    func requestNotificationPermission() async {
-        let granted = await NotificationService.shared.requestPermission()
-        notificationPermissionGranted = granted
+    func refreshNotificationStatus() async {
+        notificationStatus = await NotificationService.shared.authorizationStatus
     }
 
-    private func updateNotifications() {
-        savePreferences()
+    func requestNotificationPermission() async {
+        _ = await NotificationService.shared.requestPermission()
+        await refreshNotificationStatus()
+        predictionService.refreshNotifications(force: true)
+    }
 
-        predictionService.updatePredictions()
-
-        let fertileStart = predictionService.currentFertileWindow?.lowerBound
-
-        NotificationService.shared.rescheduleAll(
-            bbtReminderEnabled: bbtReminderEnabled,
-            bbtHour: bbtReminderHour,
-            bbtMinute: bbtReminderMinute,
-            periodReminderEnabled: periodReminderEnabled,
-            predictedPeriodDate: predictionService.predictedNextPeriodStart,
-            fertileWindowAlertEnabled: fertileWindowAlertEnabled,
-            fertileWindowStart: fertileStart,
-            predictedOvulationDate: predictionService.predictedOvulationDate
-        )
+    private func remindersChanged(enabling: Bool) {
+        if enabling, notificationStatus == .notDetermined {
+            Task { await requestNotificationPermission() }
+        }
+        predictionService.refreshNotifications(force: true)
     }
 
     // MARK: - HealthKit
 
     func toggleHealthKit() async {
         if !healthKitEnabled {
-            // Enabling
             do {
                 try await HealthKitService.shared.requestAuthorization()
-                healthKitEnabled = true
-                healthKitSyncStatus = "Connected"
-                savePreferences()
             } catch {
                 healthKitSyncStatus = "Authorization Failed"
+                return
             }
+            guard HealthKitService.shared.isSharingAuthorized else {
+                healthKitSyncStatus = "Not Allowed"
+                return
+            }
+            healthKitEnabled = true
+            healthKitSyncStatus = "Connected"
+            await syncToHealthKit()
         } else {
-            // Disabling
             healthKitEnabled = false
             healthKitSyncStatus = "Not Connected"
-            savePreferences()
         }
     }
 
@@ -130,35 +120,28 @@ final class SettingsViewModel {
             return
         }
 
-        for log in logs {
-            let isCycleStart = log.cycle?.startDate.startOfDay == log.date.startOfDay
-            await HealthKitService.shared.syncLog(log, isCycleStart: isCycleStart)
+        do {
+            try await HealthKitService.shared.mirror(logs)
+            healthKitSyncStatus = "Synced"
+        } catch {
+            healthKitSyncStatus = "Sync Failed"
         }
-
-        healthKitSyncStatus = "Synced"
     }
 
     // MARK: - Data Management
 
     var totalCycleCount: Int {
-        let descriptor = FetchDescriptor<Cycle>()
-        return (try? modelContext.fetchCount(descriptor)) ?? 0
+        _ = predictionService.dataVersion
+        return (try? modelContext.fetchCount(FetchDescriptor<Cycle>())) ?? 0
     }
 
     var totalLogCount: Int {
-        let descriptor = FetchDescriptor<DailyLog>()
-        return (try? modelContext.fetchCount(descriptor)) ?? 0
+        _ = predictionService.dataVersion
+        return (try? modelContext.fetchCount(FetchDescriptor<DailyLog>())) ?? 0
     }
 
     func deleteAllData() {
-        do {
-            try modelContext.delete(model: DailyLog.self)
-            try modelContext.delete(model: Cycle.self)
-            try modelContext.save()
-            predictionService.updatePredictions()
-            NotificationService.shared.cancelAllNotifications()
-        } catch {
-            // Handle silently — UI shows counts which will update
-        }
+        try? predictionService.cycleManager.deleteAllData()
+        predictionService.reloadAll()
     }
 }

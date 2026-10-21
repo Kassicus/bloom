@@ -16,7 +16,7 @@ struct IntercourseLogView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Existing entries
             if !entries.isEmpty {
-                ForEach(entries, id: \.dateTime) { entry in
+                ForEach(entries) { entry in
                     entryRow(entry)
                 }
             }

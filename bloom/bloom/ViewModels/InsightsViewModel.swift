@@ -42,6 +42,7 @@ final class InsightsViewModel {
 
     func refresh() {
         predictionService.updatePredictions()
+        selectedCycleIndex = min(selectedCycleIndex, max(availableCycles.count - 1, 0))
         loadStatistics()
         loadBBTData()
         loadCycleHistory()
@@ -50,9 +51,9 @@ final class InsightsViewModel {
 
     // MARK: - Available Cycles for Chart Picker
 
+    /// Most recent first.
     var availableCycles: [Cycle] {
-        let descriptor = FetchDescriptor<Cycle>(sortBy: [SortDescriptor(\.startDate, order: .reverse)])
-        return (try? modelContext.fetch(descriptor)) ?? []
+        predictionService.cycles.reversed()
     }
 
     var selectedCycle: Cycle? {
@@ -113,12 +114,14 @@ final class InsightsViewModel {
         let lengths = completed.compactMap { $0.cycleLength }
         if let shortest = lengths.min(), let longest = lengths.max() {
             cycleLengthRange = shortest...longest
+        } else {
+            cycleLengthRange = nil
         }
 
         let periodLengths = allCycles.compactMap { $0.periodLength }
-        if !periodLengths.isEmpty {
-            averagePeriodLength = Double(periodLengths.reduce(0, +)) / Double(periodLengths.count)
-        }
+        averagePeriodLength = periodLengths.isEmpty
+            ? nil
+            : Double(periodLengths.reduce(0, +)) / Double(periodLengths.count)
 
         confidencePercent = Int(predictionService.predictionConfidence * 100)
     }
@@ -157,9 +160,9 @@ final class InsightsViewModel {
                 .filter { $0.date < ovDate }
                 .compactMap { $0.bbtTemperature }
 
-            if !preOvTemps.isEmpty {
-                coverlineTemp = preOvTemps.reduce(0, +) / Double(preOvTemps.count) + BloomConstants.bbtShiftThreshold
-            }
+            coverlineTemp = preOvTemps.isEmpty
+                ? nil
+                : preOvTemps.reduce(0, +) / Double(preOvTemps.count) + BloomConstants.bbtShiftThreshold
 
             // Fertile window
             let window = CycleCalculationService.fertileWindowRange(ovulationDate: ovDate)
@@ -200,8 +203,7 @@ final class InsightsViewModel {
     // MARK: - Conception Score
 
     private func loadConceptionScore() {
-        guard let cycle = predictionService.currentCycle,
-              let ovDate = predictionService.predictedOvulationDate else {
+        guard let breakdown = predictionService.currentConceptionScore else {
             conceptionScore = nil
             conceptionTimingScore = 0
             conceptionDataQualityScore = 0
@@ -209,30 +211,10 @@ final class InsightsViewModel {
             return
         }
 
-        let logs = cycle.dailyLogs ?? []
-
-        // Timing (0-50) — uses shared scoring aligned with published probabilities
-        var bestTiming = 0
-        for log in logs where log.hadIntercourse {
-            let daysBeforeOv = log.date.startOfDay.daysBetween(ovDate.startOfDay)
-            bestTiming = max(bestTiming, CycleCalculationService.timingScore(daysBeforeOvulation: daysBeforeOv))
-        }
-        conceptionTimingScore = bestTiming
-
-        // Data quality (0-30)
-        var dq = 0
-        if logs.contains(where: { $0.bbtTemperature != nil }) { dq += 10 }
-        if logs.contains(where: { $0.cervicalMucus != nil }) { dq += 10 }
-        if logs.contains(where: { $0.opkResult != nil }) { dq += 10 }
-        conceptionDataQualityScore = dq
-
-        // Favorable signs (0-20)
-        var fs = 0
-        if logs.contains(where: { $0.cervicalMucus == .eggWhite }) { fs += 10 }
-        if logs.contains(where: { $0.opkResult == .positive }) { fs += 10 }
-        conceptionFavorableSignsScore = fs
-
-        conceptionScore = min(bestTiming + dq + fs, 100)
+        conceptionTimingScore = breakdown.timing
+        conceptionDataQualityScore = breakdown.dataQuality
+        conceptionFavorableSignsScore = breakdown.favorableSigns
+        conceptionScore = breakdown.total
     }
 }
 

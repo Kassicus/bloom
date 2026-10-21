@@ -4,6 +4,8 @@ import SwiftData
 struct DailyLogView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(AppNavigation.self) private var navigation
+    @AppStorage(Preferences.Key.useCelsius) private var useCelsius = false
     let predictionService: PredictionService
     @State private var viewModel: DailyLogViewModel?
 
@@ -19,17 +21,35 @@ struct DailyLogView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Daily Log")
-                        .font(BloomTheme.sectionTitle)
+                    BloomTheme.brandText("Daily Log")
                         .foregroundStyle(BloomTheme.brand)
                 }
             }
             .onAppear {
                 if viewModel == nil {
                     viewModel = DailyLogViewModel(modelContext: modelContext, predictionService: predictionService)
+                } else {
+                    viewModel?.reload()
                 }
+                viewModel?.temperatureUnit = TemperatureUnit(useCelsius: useCelsius)
+                showRequestedDate()
+            }
+            .onChange(of: navigation.requestedLogDate) {
+                showRequestedDate()
+            }
+            .onChange(of: predictionService.dataVersion) {
+                viewModel?.reload()
+            }
+            .onChange(of: useCelsius) {
+                viewModel?.temperatureUnit = TemperatureUnit(useCelsius: useCelsius)
             }
         }
+    }
+
+    private func showRequestedDate() {
+        guard let date = navigation.requestedLogDate, let viewModel else { return }
+        viewModel.show(date)
+        navigation.requestedLogDate = nil
     }
 
     private var isWide: Bool { sizeClass == .regular }
@@ -74,6 +94,7 @@ struct DailyLogView: View {
             .frame(maxWidth: 900)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: - Date Navigator
@@ -117,7 +138,7 @@ struct DailyLogView: View {
                 .font(.title3)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Fertile Window Active")
+                Text(viewModel.currentDate.isToday ? "Fertile Window Active" : "In Fertile Window")
                     .font(.subheadline.bold())
                 if let level = viewModel.currentFertilityLevel {
                     Text("\(level.label) — \(level.recommendation)")
@@ -174,19 +195,26 @@ struct DailyLogView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("On Period", isOn: Binding(
                     get: { viewModel.isOnPeriod },
-                    set: { viewModel.isOnPeriod = $0 }
+                    set: { viewModel.setOnPeriod($0) }
                 ))
+                .tint(CyclePhase.menstrual.color)
 
                 if viewModel.isOnPeriod {
                     Picker("Flow", selection: Binding(
                         get: { viewModel.flowIntensity },
-                        set: { viewModel.flowIntensity = $0 }
+                        set: { viewModel.setFlow($0) }
                     )) {
                         ForEach(FlowIntensity.allCases) { flow in
                             Text(flow.label).tag(flow)
                         }
                     }
                     .pickerStyle(.segmented)
+
+                    if let note = viewModel.periodPrefillNote {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 EducationalTipView(
@@ -202,16 +230,17 @@ struct DailyLogView: View {
             VStack(spacing: 8) {
                 BBTEntryView(
                     temperature: viewModel.bbtTemperature,
-                    temperatureText: viewModel.temperatureText,
+                    unit: viewModel.temperatureUnit,
                     onIncrement: viewModel.incrementTemperature,
                     onDecrement: viewModel.decrementTemperature,
-                    onClear: { viewModel.setTemperature(nil) },
-                    onSet: { viewModel.setTemperature(97.5) }
+                    onClear: viewModel.clearTemperature,
+                    onStart: viewModel.startTemperatureEntry,
+                    onSubmit: { viewModel.setTemperature(text: $0) }
                 )
 
                 EducationalTipView(
                     title: "Why track BBT?",
-                    detail: "After ovulation, your temperature rises ~0.5-1.0\u{00B0}F and stays elevated. Tracking daily helps confirm when ovulation occurred and improves prediction accuracy for future cycles."
+                    detail: "After ovulation, your temperature rises ~0.3-0.5\u{00B0}C (0.5-1.0\u{00B0}F) and stays elevated. Tracking daily helps confirm when ovulation occurred and improves prediction accuracy for future cycles."
                 )
             }
         }

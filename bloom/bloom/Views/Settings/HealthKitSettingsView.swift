@@ -27,7 +27,11 @@ struct HealthKitSettingsView: View {
                 } header: {
                     Text("Connection")
                 } footer: {
-                    Text("Bloom can read and write menstrual cycle data, basal body temperature, cervical mucus, ovulation test results, and sexual activity to Apple Health.")
+                    if viewModel.healthKitSyncStatus == "Not Allowed" {
+                        Text("Bloom wasn't given permission to write to Apple Health. Turn it on in the Health app under Sharing \u{2192} Apps \u{2192} Bloom, then try again.")
+                    } else {
+                        Text("Bloom saves your period days, basal body temperature, cervical mucus, ovulation test results, and sexual activity to Apple Health.")
+                    }
                 }
 
                 if viewModel.healthKitEnabled {
@@ -41,7 +45,7 @@ struct HealthKitSettingsView: View {
                     } header: {
                         Text("Sync")
                     } footer: {
-                        Text("Exports all logged data to Apple Health. Data already in Health will not be duplicated.")
+                        Text("Changes sync automatically. Sync Now re-exports everything — what Bloom previously saved to Health is replaced, so nothing is duplicated.")
                     }
 
                     Section("Data Synced") {
